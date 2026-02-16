@@ -330,34 +330,6 @@ if uploaded_file is not None:
                     elements.append(Paragraph(line, styles['Normal']))
                     elements.append(Spacer(1, 6*mm))
 
-            # Risk Matrix table
-            elements.append(Spacer(1, 12*mm))
-            elements.append(Paragraph("Risk Matrix Summary", styles['Heading3']))
-            risk_matrix_data = [
-                ["Likelihood / Consequence", "Insignificant", "Minor", "Moderate", "Major", "Catastrophic"],
-                ["Almost Certain", "Medium", "High", "High", "Extreme", "Extreme"],
-                ["Likely", "Medium", "Medium", "High", "Extreme", "Extreme"],
-                ["Possible", "Low", "Medium", "High", "High", "Extreme"],
-                ["Unlikely", "Low", "Low", "Medium", "High", "High"],
-                ["Rare", "Low", "Low", "Low", "Medium", "High"],
-            ]
-            risk_matrix = Table(risk_matrix_data, colWidths=[40*mm] + [30*mm]*5)
-            risk_matrix.setStyle(TableStyle([
-                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-                ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('FONTSIZE', (0,0), (-1,-1), 8),
-                ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
-            ]))
-            elements.append(risk_matrix)
-
-            # 10 lines of free space at the bottom
-            elements.append(Spacer(1, 12*mm))
-            for _ in range(10):
-                elements.append(Spacer(1, 12*mm))  # ~10 blank lines
-
             # Build PDF (no footer on later pages)
             doc.build(elements)
             buffer.seek(0)
@@ -376,3 +348,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
