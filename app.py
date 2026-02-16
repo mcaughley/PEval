@@ -185,8 +185,8 @@ if uploaded_file is not None:
 
             # === ELEGANT TITLE PAGE (logo + details + footer) ===
             try:
-                logo = Image(LOGO_PATH, width=200*mm, height=100*mm)
-                logo.hAlign = 'LEFT'
+                logo = Image(LOGO_PATH, width=100*mm, height=50*mm)
+                logo.hAlign = 'CENTRE'
                 elements.append(logo)
             except:
                 elements.append(Paragraph("CBKM Logo", styles['Heading1']))
@@ -333,5 +333,6 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
