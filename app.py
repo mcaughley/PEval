@@ -196,7 +196,7 @@ if uploaded_file is not None:
             title_style = styles['Title']
             title_style.fontSize = 28
             title_style.alignment = 1
-            elements.append(Paragraph("CBKM Pontoon Compliance Report", title_style))
+            elements.append(Paragraph("PROJECT DESIGN REVIEW", title_style))
 
             elements.append(Spacer(1, 20*mm))
 
@@ -333,6 +333,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
