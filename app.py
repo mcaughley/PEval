@@ -272,7 +272,7 @@ if uploaded_file is not None:
 
             # Non-Compliant Items Risk (on last page)
            
-             summary_text = f"""
+        summary_text = f"""
          This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
 
             Overall project risk level: **{risk_level}**.
@@ -337,6 +337,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
