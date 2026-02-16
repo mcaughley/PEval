@@ -316,10 +316,11 @@ if uploaded_file is not None:
             - Conditional: {conditional_count}
             - Review items: {review_count}
 
-            Key risks at this stage:
-            - {"Structural stability and freeboard" if any("freeboard" in r["Check"].lower() for r in non_compliant) else "No major stability concerns"}
+            Key features:
+            
+            - {"Structural stability and freeboard" if any("freeboard" in r["Check"].lower() for r in non_compliant) else "No stability concerns"}
             - {"Durability in marine/tidal exposure" if any("cover" in r["Check"].lower() or "galvanizing" in r["Check"].lower() for r in non_compliant) else "Durability appears acceptable"}
-            - {"Geotech and scour assumptions" if any("soil" in r["Check"].lower() or "scour" in r["Check"].lower() for r in non_compliant) else "Geotech looks solid"}
+            - {"Geotech and scour assumptions" if any("soil" in r["Check"].lower() or "scour" in r["Check"].lower() for r in non_compliant) else "Geotech appears acceptable"}
             - {"Vessel impact/berthing loads" if any("vessel" in r["Check"].lower() for r in non_compliant) else "Vessel envelope within design basis"}
 
            """
@@ -348,4 +349,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
