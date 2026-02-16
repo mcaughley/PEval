@@ -198,7 +198,7 @@ if uploaded_file is not None:
             title_style.alignment = 1
             elements.append(Paragraph("PROJECT DESIGN REVIEW", title_style))
 
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 12*mm))
 
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
             elements.append(Spacer(1, 8*mm))
@@ -208,7 +208,7 @@ if uploaded_file is not None:
 
             # Footer table on title page only
             footer_data = [
-                ["Prepared by:", engineer_name],
+                ["Approved by:", engineer_name],
                 ["RPEQ Number:", rpeq_number],
                 ["Date:", datetime.now().strftime('%d %B %Y')],
                 ["Signature:", signature_note],
@@ -333,6 +333,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
