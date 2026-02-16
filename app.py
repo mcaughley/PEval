@@ -191,14 +191,14 @@ if uploaded_file is not None:
             except:
                 elements.append(Paragraph("CBKM Logo", styles['Heading1']))
 
-            elements.append(Spacer(1, 50*mm))
+            elements.append(Spacer(1, 8*mm))
 
             title_style = styles['Title']
             title_style.fontSize = 28
             title_style.alignment = 1
             elements.append(Paragraph("PROJECT DESIGN REVIEW", title_style))
 
-            elements.append(Spacer(1, 20*mm))
+            elements.append(Spacer(1, 8*mm))
 
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
             elements.append(Spacer(1, 8*mm))
@@ -333,6 +333,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
