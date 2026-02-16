@@ -1,4 +1,4 @@
-# app.py - FINAL: Professional footer table with Engineer, RPEQ, Date/Signature, Company
+# app.py - FINAL: Editable footer in app, professional PDF report with logo & footer table
 
 import streamlit as st
 from pypdf import PdfReader
@@ -23,6 +23,14 @@ st.markdown("Upload pontoon design PDF → extract parameters → auto-check com
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
+# Editable footer fields (user inputs before generating PDF)
+st.sidebar.header("PDF Report Footer (Editable)")
+engineer_name = st.sidebar.text_input("Engineer Name", value="Matt McAughley")
+rpeq_number = st.sidebar.text_input("RPEQ Number", value="RPEQ XXXXXX (Certification Pending)")
+company_name = st.sidebar.text_input("Company", value="CBKM Consulting Pty Ltd")
+company_contact = st.sidebar.text_input("Contact", value="info@cbkm.au | Brisbane, QLD")
+signature_note = st.sidebar.text_input("Signature Note", value="Signed: ______________________________")
+
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
     if re.search(r"145.*BUSS.*STREET.*BURNETT.*HEADS.*4670", text, re.I | re.DOTALL):
@@ -44,21 +52,21 @@ if uploaded_file is not None:
 
         # Parameter extraction (your existing logic - abbreviated)
         params = {}
-        # ... (insert your full extraction regex block here - live_load, wind, wave, vessel, concrete, etc.)
+        # ... (insert your full extraction code here - live_load, wind, wave, vessel, concrete, etc.)
 
         st.subheader("Extracted Parameters")
         df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
         st.dataframe(df_params, use_container_width=True)
 
-        # Compliance checks (your full list here - abbreviated)
+        # Compliance checks (your full list)
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0, "ref": "AS 3962:2020 §2 & 4"},
-            # ... add all your other checks
+            # ... (add all your other checks as before)
         ]
 
         table_data = []
         for c in compliance_checks:
-            v = params.get(c["extract_key"], None)
+            v = params.get(c["key"])
             status = "Compliant" if c["func"](v) is True else ("Review" if c["func"](v) is False else c["func"](v) if isinstance(c["func"](v), str) else "N/A")
             table_data.append({
                 "Check": c["name"],
@@ -72,33 +80,31 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.applymap(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), use_container_width=True)
 
-        # PDF Report with professional footer table
+        # PDF Report with editable footer table
         def add_footer(canvas, doc):
             canvas.saveState()
-            # Footer table (Engineer / RPEQ / Date / Signature / Company)
             footer_data = [
-                ["Prepared by:", "Matt McAughley"],
-                ["RPEQ Number:", "RPEQ XXXXXX (Certification Pending)"],
+                ["Prepared by:", engineer_name],
+                ["RPEQ Number:", rpeq_number],
                 ["Date:", datetime.now().strftime('%d %B %Y')],
-                ["Signature:", "______________________________"],
-                ["Company:", "CBKM Consulting Pty Ltd"],
-                ["ABN:", "XX XXX XXX XXX"],
-                ["Contact:", "info@cbkm.au | Brisbane, QLD"]
+                ["Signature:", signature_note],
+                ["Company:", company_name],
+                ["Contact:", company_contact]
             ]
             footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
             footer_table.setStyle(TableStyle([
-                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
                 ('ALIGN', (0,0), (0,-1), 'RIGHT'),
                 ('ALIGN', (1,0), (1,-1), 'LEFT'),
                 ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                ('FONTSIZE', (0,0), (-1,-1), 8),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
                 ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
                 ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
                 ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
                 ('BOX', (0,0), (-1,-1), 1, colors.black),
             ]))
             w, h = footer_table.wrapOn(canvas, doc.width, doc.bottomMargin)
-            footer_table.drawOn(canvas, doc.leftMargin, 10*mm)  # Bottom position
+            footer_table.drawOn(canvas, doc.leftMargin, 10*mm)
             canvas.restoreState()
 
         def generate_pdf():
@@ -109,7 +115,7 @@ if uploaded_file is not None:
                 rightMargin=15*mm,
                 leftMargin=15*mm,
                 topMargin=40*mm,
-                bottomMargin=50*mm  # Space for footer
+                bottomMargin=50*mm
             )
             styles = getSampleStyleSheet()
             elements = []
@@ -184,4 +190,4 @@ if uploaded_file is not None:
         st.error(f"Error: {str(e)}")
 
 else:
-    st.info("Upload your PDF drawings to start.")
+    st.info("Upload PDF to begin.")
