@@ -1,4 +1,4 @@
-# app.py - FINAL: Elegant title page + editable footer table + robust extraction + clean PDF
+# app.py - FINAL FIXED: Elegant title page + editable footer table + robust extraction + clean PDF
 
 import streamlit as st
 from pypdf import PdfReader
@@ -12,8 +12,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
-import pytesseract
-from PIL import Image as PILImage
 
 # Logo (upload to repo root as cbkm_logo.png)
 LOGO_PATH = "cbkm_logo.png"
@@ -34,51 +32,40 @@ with st.sidebar:
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
-def extract_text_with_ocr(reader):
-    full_text = ""
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        if not text.strip():
-            for img in page.images:
-                try:
-                    pil_img = PILImage.open(BytesIO(img.data))
-                    ocr = pytesseract.image_to_string(pil_img, config='--psm 6')
-                    text += ocr + "\n"
-                except:
-                    pass
-        full_text += text + "\n"
-    return full_text
-
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
     # Clean prefix noise
-    text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON)?\s*:\s*)", "", text, flags=re.I)
+    text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
+    text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return fallback
     return fallback
 
-# Full compliance checks
-compliance_checks = [
-    {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0, "ref": "AS 3962:2020 §2 & 4"},
-    {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5, "ref": "AS 3962:2020 §4"},
-    {"name": "Wind ultimate", "req": "≥ 64 m/s", "key": "wind_ultimate", "func": lambda v: v >= 64, "ref": "AS/NZS 1170.2:2021 Cl 3.2"},
-    {"name": "Wave height", "req": "≤ 0.5 m", "key": "wave_height", "func": lambda v: v <= 0.5, "ref": "AS 3962:2020 §2.3.3"},
-    {"name": "Current velocity", "req": "≤ 1.5 m/s", "key": "current_velocity", "func": lambda v: v <= 1.5, "ref": "AS 3962:2020 §2"},
-    {"name": "Debris mat depth", "req": "≥ 1.0 m", "key": "debris_mat_depth", "func": lambda v: v >= 1.0, "ref": "AS 4997:2005 §3"},
-    {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600, "ref": "AS 3962:2020 §3"},
-    {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50, "ref": "AS 4997:2005 §4"},
-    {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10, "ref": "AS 3962:2020 §3"},
-    {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40, "ref": "AS 3600:2018 T4.3"},
-    {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review"), "ref": "AS 3600:2018 T4.3"},
-    {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600, "ref": "AS 3962:2020 §5"},
-    {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061T6", "ref": "AS 1664"},
-    {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17", "ref": "AS 1720.1"},
-    {"name": "Fixings", "req": "316 SS", "key": "fixings_grade", "func": lambda v: "316" in str(v), "ref": "AS 3962:2020 §5"},
-    {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000, "ref": "AS 4997:2005 §3"},
-    {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100, "ref": "AS 3962:2020 §4"},
-    {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100, "ref": "AS 4997:2005 §4"},
-    {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000, "ref": "AS 3962:2020 §3"},
-]
+def add_footer(canvas, doc):
+    canvas.saveState()
+    footer_data = [
+        ["Prepared by:", engineer_name],
+        ["RPEQ Number:", rpeq_number],
+        ["Date:", datetime.now().strftime('%d %B %Y')],
+        ["Signature:", signature_note],
+        ["Company:", company_name],
+        ["Contact:", company_contact]
+    ]
+    footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
+    footer_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('ALIGN', (0,0), (0,-1), 'RIGHT'),
+        ('ALIGN', (1,0), (1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+        ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+    ]))
+    w, h = footer_table.wrapOn(canvas, doc.width, doc.bottomMargin)
+    footer_table.drawOn(canvas, doc.leftMargin, 10*mm)
+    canvas.restoreState()
 
 if uploaded_file is not None:
     try:
@@ -93,8 +80,9 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Parameter extraction
+        # Parameter extraction (very flexible regex)
         params = {}
+
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
             params['live_load_point'] = float(m.group(2))
@@ -160,7 +148,7 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
 
-        # Compliance table
+        # Compliance checks
         table_data = []
         for c in compliance_checks:
             v = params.get(c["key"])
