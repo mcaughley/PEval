@@ -1,4 +1,4 @@
-# app.py - FINAL IMPLEMENTATION: Footer on title page only, Non-Compliant Items Risk + dynamic Project Risk (with matrix & 10 lines free space) on last page
+# app.py - FINAL: Dynamic "Project Risk" summary in Matt Caughley's tone + Risk Matrix, 10 lines free space, footer on title page only
 
 import streamlit as st
 from pypdf import PdfReader
@@ -20,19 +20,19 @@ st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
-# Sidebar for editable footer (only on title page)
+# Sidebar for editable footer (title page only)
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
-    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
-    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
+    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
+    rpeq_number = st.text_input("RPEQ Number", "25332")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
-    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
+    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
+    signature_note = st.text_input("Signature Line", "")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
 def extract_project_address(text):
-    fallback = ""  # blank default as requested
+    fallback = ""  # blank default
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
@@ -146,10 +146,16 @@ if uploaded_file is not None:
 
         table_data = []
         non_compliant_count = 0
+        conditional_count = 0
+        review_count = 0
         for c in compliance_checks:
             v = params.get(c["key"])
             status = "Compliant" if c["func"](v) is True else ("Review" if c["func"](v) is False else c["func"](v) if isinstance(c["func"](v), str) else "N/A")
-            if status in ["Review", "Conditional"]:
+            if status == "Review":
+                review_count += 1
+                non_compliant_count += 1
+            if status == "Conditional":
+                conditional_count += 1
                 non_compliant_count += 1
             table_data.append({
                 "Check": c["name"],
@@ -289,33 +295,36 @@ if uploaded_file is not None:
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))  # Gap before Project Risk
 
-            # Project Risk section (below non-compliant, on same last page)
+            # Project Risk section (dynamic summary in Matt Caughley's tone + risk matrix)
             elements.append(Paragraph("Project Risk", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
 
-            # Dynamic Project Risk summary in Matthew Caughley's tone
             non_compliant_count = len(non_compliant)
-            risk_level = "Low" if non_compliant_count == 0 else ("Medium" if non_compliant_count <= 3 else "High")
+            review_count = len([r for r in table_data if r["Status"] == "Review"])
+            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+
+            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
+
+            # Dynamic summary in Matt Caughley's tone
             summary_text = f"""
-            This pontoon design has been reviewed against Australian Standards (AS 3962, AS 4997, AS/NZS 1170.2, AS 3600, etc.) and site-specific requirements.
+         This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
 
-            Overall compliance is **{risk_level} risk**.
+            Overall project risk level: **{risk_level}**.
 
-            - Compliant items: {len(table_data) - non_compliant_count} out of {len(table_data)}
-            - Conditional items: {len([r for r in table_data if r["Status"] == "Conditional"])}
-            - Review items: {len([r for r in table_data if r["Status"] == "Review"])}
+            - Total items checked: {len(table_data)}
+            - Compliant: {len(table_data) - non_compliant_count}
+            - Conditional: {conditional_count}
+            - Review items: {review_count}
 
-            Key risks identified:
-            - {"Structural stability and freeboard under extreme loads" if any(r["Status"] in ["Review", "Conditional"] for r in table_data if "freeboard" in r["Check"].lower()) else "No major structural risks"}
-            - {"Durability and exposure class (marine/tidal)" if any(r["Status"] in ["Review", "Conditional"] for r in table_data if "cover" in r["Check"].lower() or "galvanizing" in r["Check"].lower()) else "Durability looks solid"}
-            - {"Geotechnical assumptions (soil cohesion, scour)" if any(r["Status"] in ["Review", "Conditional"] for r in table_data if "soil" in r["Check"].lower() or "scour" in r["Check"].lower()) else "Geotech appears acceptable"}
-            - {"Vessel impact and berthing loads" if any(r["Status"] in ["Review", "Conditional"] for r in table_data if "vessel" in r["Check"].lower()) else "Vessel envelope is within design basis"}
+            Key risks at this stage:
+            - {"Structural stability and freeboard" if any("freeboard" in r["Check"].lower() for r in non_compliant) else "No major stability concerns"}
+            - {"Durability in marine/tidal exposure" if any("cover" in r["Check"].lower() or "galvanizing" in r["Check"].lower() for r in non_compliant) else "Durability appears acceptable"}
+            - {"Geotech and scour assumptions" if any("soil" in r["Check"].lower() or "scour" in r["Check"].lower() for r in non_compliant) else "Geotech looks solid"}
+            - {"Vessel impact/berthing loads" if any("vessel" in r["Check"].lower() for r in non_compliant) else "Vessel envelope within design basis"}
 
-            RIsks are considered minor in nature. Project is endorsed.
+           """
 
-                        """
-
-            # Split summary into paragraphs for better flow
+            # Split and add paragraphs
             for line in summary_text.split('\n'):
                 if line.strip():
                     elements.append(Paragraph(line, styles['Normal']))
@@ -344,7 +353,7 @@ if uploaded_file is not None:
             ]))
             elements.append(risk_matrix)
 
-            # 10 lines of free space below
+            # 10 lines of free space at the bottom
             elements.append(Spacer(1, 12*mm))
             for _ in range(10):
                 elements.append(Spacer(1, 12*mm))  # ~10 blank lines
