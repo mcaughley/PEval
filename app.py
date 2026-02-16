@@ -198,12 +198,12 @@ if uploaded_file is not None:
             title_style.alignment = 1
             elements.append(Paragraph("PROJECT DESIGN REVIEW", title_style))
 
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 20*mm))
 
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 20*mm))
             elements.append(Paragraph(project_address if project_address else "Not detected", styles['Heading3']))
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 20*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
             # Footer table on title page only
@@ -333,6 +333,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
