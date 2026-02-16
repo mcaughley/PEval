@@ -1,4 +1,4 @@
-# app.py - FINAL FIXED: Safe None comparisons, robust extraction, elegant title page, editable footer, clean PDF
+# app.py - FINAL: Robust extraction, clean address, elegant title page, editable footer table on every page
 
 import streamlit as st
 from pypdf import PdfReader
@@ -15,7 +15,7 @@ from reportlab.pdfgen import canvas
 import pytesseract
 from PIL import Image as PILImage
 
-# Logo (in repo root)
+# Logo (confirmed in repo)
 LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
@@ -26,11 +26,11 @@ st.markdown("Upload pontoon design PDF → extract parameters → auto-check com
 # Sidebar for editable footer
 with st.sidebar:
     st.header("PDF Report Footer")
-    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
-    rpeq_number = st.text_input("RPEQ Number", "25332")
+    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
+    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
-    signature_note = st.text_input("Signature Line", "")
+    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
+    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
@@ -51,6 +51,7 @@ def extract_text_with_ocr(reader):
 
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
+    # Remove prefix noise
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
@@ -66,7 +67,7 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Parameter extraction (tuned to your drawings)
+        # Robust parameter extraction
         params = {}
 
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
@@ -135,7 +136,7 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
 
-        # Full compliance checks (safe None handling)
+        # Full compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -295,4 +296,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-
