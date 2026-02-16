@@ -191,7 +191,7 @@ if uploaded_file is not None:
             except:
                 elements.append(Paragraph("CBKM Logo", styles['Heading1']))
 
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 4*mm))
 
             title_style = styles['Title']
             title_style.fontSize = 28
@@ -333,6 +333,7 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
 
 
