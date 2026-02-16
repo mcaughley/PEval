@@ -1,4 +1,4 @@
-# app.py - FINAL: Robust extraction, clean address, elegant title page, editable footer, no errors/warnings
+# app.py - FINAL: Robust extraction, elegant title page, editable footer table, clean PDF
 
 import streamlit as st
 from pypdf import PdfReader
@@ -32,65 +32,74 @@ with st.sidebar:
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
-def extract_text_with_ocr(reader):
-    full_text = ""
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        if not text.strip():
-            for img in page.images:
-                try:
-                    pil_img = PILImage.open(BytesIO(img.data))
-                    ocr = pytesseract.image_to_string(pil_img, config='--psm 6')
-                    text += ocr + "\n"
-                except:
-                    pass
-        full_text += text + "\n"
-    return full_text
-
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    # Remove prefix noise and match core address
+    # Remove prefix noise
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return fallback
     return fallback
 
+def add_footer(canvas, doc):
+    canvas.saveState()
+    footer_data = [
+        ["Prepared by:", engineer_name],
+        ["RPEQ Number:", rpeq_number],
+        ["Date:", datetime.now().strftime('%d %B %Y')],
+        ["Signature:", signature_note],
+        ["Company:", company_name],
+        ["Contact:", company_contact]
+    ]
+    footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
+    footer_table.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+        ('ALIGN', (0,0), (0,-1), 'RIGHT'),
+        ('ALIGN', (1,0), (1,-1), 'LEFT'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+        ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+        ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+    ]))
+    w, h = footer_table.wrapOn(canvas, doc.width, doc.bottomMargin)
+    footer_table.drawOn(canvas, doc.leftMargin, 10*mm)
+    canvas.restoreState()
+
 if uploaded_file is not None:
     try:
         reader = PdfReader(uploaded_file)
-        full_text = extract_text_with_ocr(reader)
-        st.success(f"PDF processed ({len(reader.pages)} pages) - OCR applied where needed")
+        full_text = ""
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            full_text += text + "\n"
+
+        st.success(f"PDF processed ({len(reader.pages)} pages)")
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Robust parameter extraction (tuned to your drawings)
+        # Parameter extraction (flexible regex)
         params = {}
 
-        # Live loads
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
             params['live_load_point'] = float(m.group(2))
 
-        # Wind
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
 
-        # Wave height
         if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
 
-        # Current velocity
         if m := re.search(r"VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
 
-        # Debris
         if m := re.search(r"DEBRIS LOADS.*?(\d+\.\d+)\s*m.*?(\d+\.\d+)\s*TONNE", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
             params['debris_log_mass'] = float(m.group(2))
 
-        # Vessel
         if m := re.search(r"LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
         if m := re.search(r"BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
@@ -98,48 +107,38 @@ if uploaded_file is not None:
         if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
 
-        # Freeboard
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
 
-        # Deck slope
-        if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)\s*DEG", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
 
-        # Concrete
-        if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE (\d+) MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
-        if m := re.search(r"MINIMUM COVER TO THE REINFORCEMENT - (\d+) mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
 
-        # Galvanizing
-        if m := re.search(r"COATING MASS NOT LESS THAN (\d+) g/sqm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
 
-        # Aluminium
-        if m := re.search(r"MINIMUM GRADE (\d+ T\d)", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.I | re.DOTALL):
             params['aluminium_grade'] = m.group(1).replace(" ", "")
 
-        # Timber
-        if m := re.search(r"MINIMUM (F\d+)", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM\s*(F\d+)", full_text, re.I | re.DOTALL):
             params['timber_grade'] = m.group(1)
 
-        # Fixings
-        if m := re.search(r"FIXINGS TO BE (\d+) GRADE STAINLESS STEEL", full_text, re.I | re.DOTALL):
+        if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
             params['fixings_grade'] = m.group(1)
 
-        # Scour
-        if m := re.search(r"MAX (\d+)mm SCOUR", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
 
-        # Pile tolerance
-        if m := re.search(r"MAX OUT-OF-PLANE TOLERANCE .* = (\d+)mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.I | re.DOTALL):
             params['pile_tolerance'] = int(m.group(1))
 
-        # Soil cohesion
-        if m := re.search(r"UNDRAINED COHESION = (\d+)kPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
             params['soil_cohesion'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
