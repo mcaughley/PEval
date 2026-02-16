@@ -17,14 +17,14 @@ LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 
-st.title("CBKM Pontoon Design Evaluator")
+st.title("Pontoon Design Review")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
 # Sidebar for editable footer (only shown on title page)
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
     engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
-    rpeq_number = st.text_input("RPEQ Number", "25332)")
+    rpeq_number = st.text_input("RPEQ Number", "25332")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
     company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
     signature_note = st.text_input("Signature Line", "Signed: ______________________________")
@@ -311,3 +311,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
