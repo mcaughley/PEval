@@ -240,10 +240,10 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Non-Compliant Items Risk (last page)
+            # Non-Compliant Items (last page)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
-                elements.append(Paragraph("Non-Compliant Items Risk", styles['Heading2']))
+                elements.append(Paragraph("Non-Compliant Items", styles['Heading2']))
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
                 for row in non_compliant:
                     nc_data.append([
@@ -282,3 +282,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
