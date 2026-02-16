@@ -27,7 +27,7 @@ with st.sidebar:
     rpeq_number = st.text_input("RPEQ Number", "25332")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
     company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
-    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
+    signature_note = st.text_input("Signature Line", "")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
@@ -311,4 +311,5 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
 
