@@ -1,4 +1,4 @@
-# app.py - FINAL: Robust extraction, clean address, elegant title page, editable footer, no spilling
+# app.py - FINAL FIXED: Safe comparisons (no NoneType error), robust extraction, clean PDF with logo & footer
 
 import streamlit as st
 from pypdf import PdfReader
@@ -15,7 +15,7 @@ from reportlab.pdfgen import canvas
 import pytesseract
 from PIL import Image as PILImage
 
-# Logo (confirmed in repo root)
+# Logo (upload to repo root as cbkm_logo.png)
 LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
@@ -26,11 +26,11 @@ st.markdown("Upload pontoon design PDF → extract parameters → auto-check com
 # Sidebar for editable footer
 with st.sidebar:
     st.header("PDF Report Footer")
-    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
-    rpeq_number = st.text_input("RPEQ Number", "25332")
+    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
+    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
-    signature_note = st.text_input("Signature Line", " ")
+    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
+    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
@@ -51,7 +51,6 @@ def extract_text_with_ocr(reader):
 
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    # Remove prefix noise
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
@@ -67,7 +66,7 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Robust parameter extraction (tuned to your drawings)
+        # Robust parameter extraction
         params = {}
 
         # Live loads
@@ -152,27 +151,27 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
 
-        # Full compliance checks
+        # Full compliance checks (safe None handling)
         compliance_checks = [
-            {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0, "ref": "AS 3962:2020 §2 & 4"},
-            {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5, "ref": "AS 3962:2020 §4"},
-            {"name": "Wind ultimate", "req": "≥ 64 m/s", "key": "wind_ultimate", "func": lambda v: v >= 64, "ref": "AS/NZS 1170.2:2021 Cl 3.2"},
-            {"name": "Wave height", "req": "≤ 0.5 m", "key": "wave_height", "func": lambda v: v <= 0.5, "ref": "AS 3962:2020 §2.3.3"},
-            {"name": "Current velocity", "req": "≤ 1.5 m/s", "key": "current_velocity", "func": lambda v: v <= 1.5, "ref": "AS 3962:2020 §2"},
-            {"name": "Debris mat depth", "req": "≥ 1.0 m", "key": "debris_mat_depth", "func": lambda v: v >= 1.0, "ref": "AS 4997:2005 §3"},
-            {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600, "ref": "AS 3962:2020 §3"},
-            {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50, "ref": "AS 4997:2005 §4"},
-            {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10, "ref": "AS 3962:2020 §3"},
-            {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40, "ref": "AS 3600:2018 T4.3"},
-            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review"), "ref": "AS 3600:2018 T4.3"},
-            {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600, "ref": "AS 3962:2020 §5"},
-            {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061T6", "ref": "AS 1664"},
-            {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17", "ref": "AS 1720.1"},
-            {"name": "Fixings", "req": "316 SS", "key": "fixings_grade", "func": lambda v: "316" in str(v), "ref": "AS 3962:2020 §5"},
-            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000, "ref": "AS 4997:2005 §3"},
-            {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100, "ref": "AS 3962:2020 §4"},
-            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100, "ref": "AS 4997:2005 §4"},
-            {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000, "ref": "AS 3962:2020 §3"},
+            {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
+            {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
+            {"name": "Wind ultimate", "req": "≥ 64 m/s", "key": "wind_ultimate", "func": lambda v: v >= 64 if v is not None else False, "ref": "AS/NZS 1170.2:2021 Cl 3.2"},
+            {"name": "Wave height", "req": "≤ 0.5 m", "key": "wave_height", "func": lambda v: v <= 0.5 if v is not None else False, "ref": "AS 3962:2020 §2.3.3"},
+            {"name": "Current velocity", "req": "≤ 1.5 m/s", "key": "current_velocity", "func": lambda v: v <= 1.5 if v is not None else False, "ref": "AS 3962:2020 §2"},
+            {"name": "Debris mat depth", "req": "≥ 1.0 m", "key": "debris_mat_depth", "func": lambda v: v >= 1.0 if v is not None else False, "ref": "AS 4997:2005 §3"},
+            {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600 if v is not None else False, "ref": "AS 3962:2020 §3"},
+            {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
+            {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
+            {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
+            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
+            {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600 if v is not None else False, "ref": "AS 3962:2020 §5"},
+            {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061T6" if v is not None else False, "ref": "AS 1664"},
+            {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17" if v is not None else False, "ref": "AS 1720.1"},
+            {"name": "Fixings", "req": "316 SS", "key": "fixings_grade", "func": lambda v: "316" in str(v) if v is not None else False, "ref": "AS 3962:2020 §5"},
+            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000 if v is not None else False, "ref": "AS 4997:2005 §3"},
+            {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100 if v is not None else False, "ref": "AS 3962:2020 §4"},
+            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100 if v is not None else False, "ref": "AS 4997:2005 §4"},
+            {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000 if v is not None else False, "ref": "AS 3962:2020 §3"},
         ]
 
         table_data = []
@@ -206,7 +205,6 @@ if uploaded_file is not None:
             elements = []
 
             # === ELEGANT TITLE PAGE ===
-            # Large centered logo
             try:
                 logo = Image(LOGO_PATH, width=180*mm, height=60*mm)
                 logo.hAlign = 'CENTER'
@@ -216,10 +214,9 @@ if uploaded_file is not None:
 
             elements.append(Spacer(1, 50*mm))
 
-            # Centered title block
             title_style = styles['Title']
             title_style.fontSize = 28
-            title_style.alignment = 1  # center
+            title_style.alignment = 1
             elements.append(Paragraph("CBKM Pontoon Compliance Report", title_style))
 
             elements.append(Spacer(1, 20*mm))
@@ -230,11 +227,9 @@ if uploaded_file is not None:
             elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
-            elements.append(Spacer(1, 100*mm))  # Extra space for elegance
+            elements.append(Spacer(1, 100*mm))
+            elements.append(PageBreak())
 
-            elements.append(PageBreak())  # Main content starts on next page
-
-            # === MAIN CONTENT ===
             # Parameters table
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
@@ -272,7 +267,7 @@ if uploaded_file is not None:
             ]))
             elements.append(c_table)
 
-            # Build with footer
+            # Footer function
             def add_footer(canvas, doc):
                 canvas.saveState()
                 footer_data = [
@@ -290,29 +285,4 @@ if uploaded_file is not None:
                     ('ALIGN', (1,0), (1,-1), 'LEFT'),
                     ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
                     ('FONTSIZE', (0,0), (-1,-1), 9),
-                    ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-                    ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
-                    ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
-                    ('BOX', (0,0), (-1,-1), 1, colors.black),
-                ]))
-                w, h = footer_table.wrapOn(canvas, doc.width, doc.bottomMargin)
-                footer_table.drawOn(canvas, doc.leftMargin, 10*mm)
-                canvas.restoreState()
-
-            doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
-            buffer.seek(0)
-            return buffer
-
-        pdf_buffer = generate_pdf()
-        st.download_button(
-            label="Download Elegant PDF Report",
-            data=pdf_buffer,
-            file_name="pontoon_compliance_report.pdf",
-            mime="application/pdf"
-        )
-
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
-
-else:
-    st.info("Upload PDF to begin.")
+                    ('FONTNAME', (0
