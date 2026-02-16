@@ -1,4 +1,4 @@
-# app.py - FIXED & COMPLETE: Syntax errors resolved, robust extraction, elegant title page, editable footer table, clean PDF report
+# app.py - FINAL: Footer ONLY on title page, Non-Compliant Items Risk + Project Risk on last page, tables on separate pages
 
 import streamlit as st
 from pypdf import PdfReader
@@ -11,7 +11,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
 
 # Logo (must be in repo root)
 LOGO_PATH = "cbkm_logo.png"
@@ -21,13 +20,13 @@ st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
-# Sidebar for editable footer
+# Sidebar for editable footer (only shown on title page)
 with st.sidebar:
-    st.header("PDF Report Footer")
-    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
-    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
+    st.header("PDF Report Footer (Title Page Only)")
+    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
+    rpeq_number = st.text_input("RPEQ Number", "25332)")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
+    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
     signature_note = st.text_input("Signature Line", "Signed: ______________________________")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
@@ -54,7 +53,7 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Parameter extraction (robust regex)
+        # Parameter extraction (flexible regex)
         params = {}
 
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
@@ -162,7 +161,7 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.applymap(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
 
-        # PDF Report with elegant title page
+        # PDF Report with elegant title page + footer on title page only
         def generate_pdf():
             buffer = BytesIO()
             doc = SimpleDocTemplate(
@@ -176,7 +175,7 @@ if uploaded_file is not None:
             styles = getSampleStyleSheet()
             elements = []
 
-            # === ELEGANT TITLE PAGE ===
+            # === ELEGANT TITLE PAGE (logo + details + footer) ===
             try:
                 logo = Image(LOGO_PATH, width=180*mm, height=60*mm)
                 logo.hAlign = 'CENTER'
@@ -199,8 +198,31 @@ if uploaded_file is not None:
             elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
-            elements.append(Spacer(1, 100*mm))
-            elements.append(PageBreak())
+            # Footer table on title page only
+            footer_data = [
+                ["Prepared by:", engineer_name],
+                ["RPEQ Number:", rpeq_number],
+                ["Date:", datetime.now().strftime('%d %B %Y')],
+                ["Signature:", signature_note],
+                ["Company:", company_name],
+                ["Contact:", company_contact]
+            ]
+            footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
+            footer_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('ALIGN', (0,0), (0,-1), 'RIGHT'),
+                ('ALIGN', (1,0), (1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+                ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
+                ('BOX', (0,0), (-1,-1), 1, colors.black),
+            ]))
+            elements.append(Spacer(1, 40*mm))
+            elements.append(footer_table)
+
+            elements.append(PageBreak())  # Parameters on next page
 
             # Parameters table (separate page)
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
@@ -215,7 +237,7 @@ if uploaded_file is not None:
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ]))
             elements.append(p_table)
-            elements.append(PageBreak())
+            elements.append(PageBreak())  # Compliance on next page
 
             # Compliance table (separate page)
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
@@ -238,9 +260,9 @@ if uploaded_file is not None:
                 ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
             ]))
             elements.append(c_table)
-            elements.append(PageBreak())
+            elements.append(PageBreak())  # Non-compliant + Project Risk on last page
 
-            # Non-Compliant Items (last page)
+            # Non-Compliant Items Risk (on last page)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
                 elements.append(Paragraph("Non-Compliant Items", styles['Heading2']))
@@ -264,14 +286,21 @@ if uploaded_file is not None:
                 ]))
                 elements.append(nc_table)
 
-            # Build PDF (footer only on title page - no onLaterPages)
+            # Project Risk section (below non-compliant, on same last page)
+            elements.append(Paragraph("Project Risk", styles['Heading2']))
+            elements.append(Spacer(1, 12*mm))
+            # Add ~10 lines of free space (adjust spacer height as needed)
+            for _ in range(10):
+                elements.append(Spacer(1, 12*mm))  # ~10 blank lines at standard spacing
+
+            # Build PDF (no footer on later pages)
             doc.build(elements)
             buffer.seek(0)
             return buffer
 
         pdf_buffer = generate_pdf()
         st.download_button(
-            label="Download Report (Title Page Footer Only)",
+            label="Download Report (Footer on Title Page Only)",
             data=pdf_buffer,
             file_name="pontoon_compliance_report.pdf",
             mime="application/pdf"
@@ -282,4 +311,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-
