@@ -1,4 +1,4 @@
-# app.py - FINAL: Footer ONLY on title page, Non-Compliant Items Risk + Project Risk on last page, tables on separate pages
+# app.py - FINAL: Project address dynamic + default blank, footer on title page only, Non-Compliant + Project Risk on last page
 
 import streamlit as st
 from pypdf import PdfReader
@@ -17,28 +17,33 @@ LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 
-st.title("Pontoon Design Review")
+st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
-# Sidebar for editable footer (only shown on title page)
+# Sidebar for editable footer (title page only)
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
-    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
-    rpeq_number = st.text_input("RPEQ Number", "25332")
+    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
+    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
-    signature_note = st.text_input("Signature Line", "")
+    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
+    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
 def extract_project_address(text):
-    fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    # Clean prefix noise
-    text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
+    # Default is now blank (empty string)
+    fallback = ""
+
+    # Remove common prefixes/noise
+    text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON|PROPOSED|USE)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
+
+    # Match core address pattern (case-insensitive, flexible spacing)
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
-        return fallback
-    return fallback
+        return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
+
+    return fallback  # blank if no match
 
 if uploaded_file is not None:
     try:
@@ -51,7 +56,7 @@ if uploaded_file is not None:
         st.success(f"PDF processed ({len(reader.pages)} pages)")
 
         project_address = extract_project_address(full_text)
-        st.info(f"**Project Address:** {project_address}")
+        st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
         # Parameter extraction (flexible regex)
         params = {}
@@ -194,7 +199,7 @@ if uploaded_file is not None:
 
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
             elements.append(Spacer(1, 8*mm))
-            elements.append(Paragraph(project_address, styles['Heading3']))
+            elements.append(Paragraph(project_address if project_address else "Not detected", styles['Heading3']))
             elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
@@ -265,7 +270,7 @@ if uploaded_file is not None:
             # Non-Compliant Items Risk (on last page)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
-                elements.append(Paragraph("Non-Compliant Items", styles['Heading2']))
+                elements.append(Paragraph("Non-Compliant Items Risk", styles['Heading2']))
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
                 for row in non_compliant:
                     nc_data.append([
@@ -285,13 +290,14 @@ if uploaded_file is not None:
                     ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
                 ]))
                 elements.append(nc_table)
+                elements.append(Spacer(1, 12*mm))  # Gap before Project Risk
 
             # Project Risk section (below non-compliant, on same last page)
             elements.append(Paragraph("Project Risk", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
-            # Add ~10 lines of free space (adjust spacer height as needed)
+            # Add ~10 lines of free space
             for _ in range(10):
-                elements.append(Spacer(1, 12*mm))  # ~10 blank lines at standard spacing
+                elements.append(Spacer(1, 12*mm))  # Approx 10 blank lines
 
             # Build PDF (no footer on later pages)
             doc.build(elements)
@@ -311,5 +317,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-
-
