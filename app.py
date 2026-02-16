@@ -309,10 +309,6 @@ if uploaded_file is not None:
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))  # Gap before Project Risk
 
-            # Project Risk section (dynamic summary + risk matrix)
-            elements.append(Paragraph("Project Risk", styles['Heading2']))
-            elements.append(Spacer(1, 12*mm))
-
             # Split and add paragraphs for summary_text
             for line in summary_text.split('\n'):
                 if line.strip():
@@ -337,3 +333,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
