@@ -1,4 +1,4 @@
-# app.py - FINAL: Robust extraction, clean address, elegant title page, editable footer table on every page
+# app.py - FINAL: Footer on title page only, non-compliant table on last page, tables on separate pages
 
 import streamlit as st
 from pypdf import PdfReader
@@ -15,7 +15,7 @@ from reportlab.pdfgen import canvas
 import pytesseract
 from PIL import Image as PILImage
 
-# Logo (confirmed in repo)
+# Logo (in repo root)
 LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
@@ -51,7 +51,6 @@ def extract_text_with_ocr(reader):
 
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    # Remove prefix noise
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
@@ -175,7 +174,7 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.applymap(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
 
-        # PDF Report with elegant title page
+        # PDF Report with elegant title page + footer on title page only
         def generate_pdf():
             buffer = BytesIO()
             doc = SimpleDocTemplate(
@@ -189,7 +188,7 @@ if uploaded_file is not None:
             styles = getSampleStyleSheet()
             elements = []
 
-            # === ELEGANT TITLE PAGE ===
+            # === ELEGANT TITLE PAGE (logo + details + footer) ===
             try:
                 logo = Image(LOGO_PATH, width=180*mm, height=60*mm)
                 logo.hAlign = 'CENTER'
@@ -212,10 +211,33 @@ if uploaded_file is not None:
             elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
-            elements.append(Spacer(1, 100*mm))
-            elements.append(PageBreak())
+            # Footer table on title page only
+            footer_data = [
+                ["Prepared by:", engineer_name],
+                ["RPEQ Number:", rpeq_number],
+                ["Date:", datetime.now().strftime('%d %B %Y')],
+                ["Signature:", signature_note],
+                ["Company:", company_name],
+                ["Contact:", company_contact]
+            ]
+            footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
+            footer_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('ALIGN', (0,0), (0,-1), 'RIGHT'),
+                ('ALIGN', (1,0), (1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+                ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
+                ('BOX', (0,0), (-1,-1), 1, colors.black),
+            ]))
+            elements.append(Spacer(1, 40*mm))
+            elements.append(footer_table)
 
-            # Parameters table
+            elements.append(PageBreak())  # Main content starts on next page
+
+            # Parameters table (on separate page)
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
             for k, v in params.items():
@@ -228,9 +250,9 @@ if uploaded_file is not None:
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ]))
             elements.append(p_table)
-            elements.append(Spacer(1, 12*mm))
+            elements.append(PageBreak())  # Next page
 
-            # Compliance table
+            # Compliance table (on separate page)
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status"]]
             for row in table_data:
@@ -251,35 +273,34 @@ if uploaded_file is not None:
                 ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
             ]))
             elements.append(c_table)
+            elements.append(PageBreak())  # Next page for non-compliant
 
-            # Build with footer
-            def add_footer(canvas, doc):
-                canvas.saveState()
-                footer_data = [
-                    ["Prepared by:", engineer_name],
-                    ["RPEQ Number:", rpeq_number],
-                    ["Date:", datetime.now().strftime('%d %B %Y')],
-                    ["Signature:", signature_note],
-                    ["Company:", company_name],
-                    ["Contact:", company_contact]
-                ]
-                footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
-                footer_table.setStyle(TableStyle([
-                    ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-                    ('ALIGN', (0,0), (0,-1), 'RIGHT'),
-                    ('ALIGN', (1,0), (1,-1), 'LEFT'),
-                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-                    ('FONTSIZE', (0,0), (-1,-1), 9),
-                    ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-                    ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
-                    ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
-                    ('BOX', (0,0), (-1,-1), 1, colors.black),
+            # Non-compliant items table (on last page)
+            non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
+            if non_compliant:
+                elements.append(Paragraph("Non-Compliant Items", styles['Heading2']))
+                nc_data = [["Check", "Required", "Design Value", "Status"]]
+                for row in non_compliant:
+                    nc_data.append([
+                        Paragraph(row['Check'], styles['Normal']),
+                        Paragraph(row['Required'], styles['Normal']),
+                        Paragraph(str(row['Design Value']), styles['Normal']),
+                        Paragraph(row['Status'], styles['Normal'])
+                    ])
+                nc_table = Table(nc_data, colWidths=[60*mm, 50*mm, 40*mm, 30*mm])
+                nc_table.setStyle(TableStyle([
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                    ('BACKGROUND', (0,0), (-1,0), colors.red),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('FONTSIZE', (0,1), (-1,-1), 9),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
                 ]))
-                w, h = footer_table.wrapOn(canvas, doc.width, doc.bottomMargin)
-                footer_table.drawOn(canvas, doc.leftMargin, 10*mm)
-                canvas.restoreState()
+                elements.append(nc_table)
 
-            doc.build(elements, onFirstPage=add_footer, onLaterPages=add_footer)
+            # Build PDF
+            doc.build(elements)
             buffer.seek(0)
             return buffer
 
