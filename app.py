@@ -1,4 +1,4 @@
-# app.py - FINAL FIXED: Robust extraction, clean address, elegant title page, editable footer table, no spilling
+# app.py - FINAL FIXED: No warnings, robust extraction, elegant title page, editable footer, clean PDF
 
 import streamlit as st
 from pypdf import PdfReader
@@ -51,10 +51,9 @@ def extract_text_with_ocr(reader):
 
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    # Remove common prefixes and noise
+    # Remove noise and match core address
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON|PROPOSED|USE)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
-    # Match core address
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return fallback
     return fallback
@@ -68,32 +67,26 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # Robust parameter extraction (very flexible regex)
+        # Robust parameter extraction
         params = {}
 
-        # Live loads
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
             params['live_load_point'] = float(m.group(2))
 
-        # Wind
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
 
-        # Wave height
         if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
 
-        # Current velocity
         if m := re.search(r"VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
 
-        # Debris
         if m := re.search(r"DEBRIS LOADS.*?(\d+\.\d+)\s*m.*?(\d+\.\d+)\s*TONNE", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
             params['debris_log_mass'] = float(m.group(2))
 
-        # Vessel
         if m := re.search(r"LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
         if m := re.search(r"BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
@@ -101,53 +94,44 @@ if uploaded_file is not None:
         if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
 
-        # Freeboard
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
 
-        # Deck slope
         if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
 
-        # Concrete
         if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
 
-        # Galvanizing
         if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
 
-        # Aluminium
         if m := re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.I | re.DOTALL):
             params['aluminium_grade'] = m.group(1).replace(" ", "")
 
-        # Timber
         if m := re.search(r"MINIMUM\s*(F\d+)", full_text, re.I | re.DOTALL):
             params['timber_grade'] = m.group(1)
 
-        # Fixings
         if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
             params['fixings_grade'] = m.group(1)
 
-        # Scour
         if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
 
-        # Pile tolerance
         if m := re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.I | re.DOTALL):
             params['pile_tolerance'] = int(m.group(1))
 
-        # Soil cohesion
         if m := re.search(r"COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
             params['soil_cohesion'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
         if params:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
+            df_params["Value"] = df_params["Value"].astype(str)  # Fix Arrow type error
             st.dataframe(df_params, width='stretch')
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
