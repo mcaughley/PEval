@@ -1,97 +1,181 @@
-# Pontoon Design Evaluation Web App (Streamlit Version)
-# Version: 1.0 - Fixed IndentationError
+# app.py - Pontoon Design Evaluator (clean version for Snowflake / Streamlit)
 import streamlit as st
-import json
-import datetime
-import pandas as pd
+import pypdf2
 import re
-from typing import Dict, Any
-from pypdf2 import PdfReader
-import io
-from PIL import Image
-# import pytesseract  # Comment out if not supported in your env; use text extraction only
+import pandas as pd
+from datetime import datetime
 
-# Audit Log File
-AUDIT_LOG_FILE = "pontoon_evaluation_audit.log"
+st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 
-def log_action(message: str):
-    timestamp = datetime.datetime.now().isoformat()
-    with open(AUDIT_LOG_FILE, 'a') as log_file:
-        log_file.write(f"[{timestamp}] {message}\n")
+st.title("CBKM Pontoon Design Evaluator")
+st.markdown("Upload PDF drawings → extract key parameters → check compliance with AS 3962 / AS 4997 / QLD tidal works")
 
-def extract_params_from_pdf(uploaded_file) -> Dict[str, Any]:
-    full_text = ""
+uploaded_file = st.file_uploader("Upload PDF (multi-page drawings)", type="pdf")
+
+if uploaded_file is not None:
     try:
-        reader = PdfReader(uploaded_file)
+        reader = pypdf2.PdfReader(uploaded_file)
+        full_text = ""
         for page in reader.pages:
             text = page.extract_text() or ""
             full_text += text + "\n"
-        log_action("Extracted text from PDF")
+
+        st.success(f"PDF processed ({len(reader.pages)} pages)")
+
+        # Extract parameters - tuned to your exact drawing text
+        params = {}
+
+        # Live loads (from GENERAL)
+        match = re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.IGNORECASE | re.DOTALL)
+        if match:
+            params['live_load_uniform'] = float(match.group(1))
+            params['live_load_point'] = float(match.group(2))
+
+        # Wind
+        match = re.search(r"ULTIMATE WIND SPEED V100\s*=\s*(\d+)m/s", full_text, re.IGNORECASE)
+        if match:
+            params['wind_ultimate'] = int(match.group(1))
+
+        # Wave height
+        match = re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)mm", full_text, re.IGNORECASE)
+        if match:
+            params['wave_height_mm'] = int(match.group(1))
+            params['wave_height'] = params['wave_height_mm'] / 1000.0
+
+        # Current velocity
+        match = re.search(r"DESIGN STREAM VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.IGNORECASE)
+        if match:
+            params['current_velocity'] = float(match.group(1))
+
+        # Debris
+        match = re.search(r"DEBRIS LOADS.*?(\d+\.\d+)m.*?(\d+\.\d+)\s*TONNE", full_text, re.IGNORECASE)
+        if match:
+            params['debris_mat_depth'] = float(match.group(1))
+            params['debris_log_mass'] = float(match.group(2))
+
+        # Vessel
+        match = re.search(r"VESSEL LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.IGNORECASE)
+        if match:
+            params['vessel_length'] = float(match.group(1))
+        match = re.search(r"VESSEL BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.IGNORECASE)
+        if match:
+            params['vessel_beam'] = float(match.group(1))
+        match = re.search(r"VESSEL MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.IGNORECASE)
+        if match:
+            params['vessel_mass'] = int(match.group(1).replace(',', ''))
+
+        # Freeboard
+        match = re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.IGNORECASE)
+        if match:
+            params['freeboard_dead'] = (int(match.group(1)) + int(match.group(2))) / 2
+        match = re.search(r"MIN\s*(\d+)\s*mm", full_text, re.IGNORECASE)
+        if match:
+            params['freeboard_critical'] = int(match.group(1))
+
+        # Deck slope
+        match = re.search(r"CRITICAL DECK SLOPE.*?(\d+)\s*DEG", full_text, re.IGNORECASE)
+        if match:
+            params['deck_slope_max'] = int(match.group(1))
+
+        # Concrete
+        match = re.search(r"PONTOON CONCRETE STRENGTH.*?(\d+)\s*MPa", full_text, re.IGNORECASE)
+        if match:
+            params['concrete_strength'] = int(match.group(1))
+        match = re.search(r"COVER.*?(\d+)\s*mm", full_text, re.IGNORECASE)
+        if match:
+            params['concrete_cover'] = int(match.group(1))
+
+        # Galvanizing
+        match = re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.IGNORECASE)
+        if match:
+            params['steel_galvanizing'] = int(match.group(1))
+
+        # Aluminium grade
+        match = re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.IGNORECASE)
+        if match:
+            params['aluminium_grade'] = match.group(1).replace(" ", "")
+
+        # Timber grade
+        match = re.search(r"MINIMUM\s*(F\d+)", full_text, re.IGNORECASE)
+        if match:
+            params['timber_grade'] = match.group(1)
+
+        # Fixings
+        match = re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE STAINLESS STEEL", full_text, re.IGNORECASE)
+        if match:
+            params['fixings_grade'] = f"{match.group(1)} SS"
+
+        # Scour & tolerances
+        match = re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.IGNORECASE)
+        if match:
+            params['scour_allowance'] = int(match.group(1))
+        match = re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.IGNORECASE)
+        if match:
+            params['pile_tolerance'] = int(match.group(1))
+
+        match = re.search(r"UNDRAINED COHESION\s*=\s*(\d+)kPa", full_text, re.IGNORECASE)
+        if match:
+            params['soil_cohesion'] = int(match.group(1))
+
+        # Fill missing with defaults / estimates
+        if 'vessel_length' in params:
+            params.setdefault('berth_length', params['vessel_length'] * 1.1)
+        if 'vessel_beam' in params:
+            params.setdefault('berth_width', params['vessel_beam'] * 1.5)
+
+        st.subheader("Extracted Parameters")
+        if params:
+            df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
+            st.dataframe(df_params, use_container_width=True)
+        else:
+            st.warning("No parameters found in the PDF text.")
+
+        # Basic compliance checks (expand as needed)
+        st.subheader("Quick Compliance Summary")
+
+        checks = []
+
+        if 'live_load_uniform' in params and params['live_load_uniform'] >= 3.0:
+            checks.append({"Check": "Live load uniform", "Value": params['live_load_uniform'], "Status": "OK (≥3.0 kPa)"})
+        else:
+            checks.append({"Check": "Live load uniform", "Value": params.get('live_load_uniform', 'N/A'), "Status": "Review"})
+
+        if 'wind_ultimate' in params and params['wind_ultimate'] >= 65:
+            checks.append({"Check": "Wind ultimate (Region C)", "Value": params['wind_ultimate'], "Status": "OK (≥65 m/s)"})
+        else:
+            checks.append({"Check": "Wind ultimate", "Value": params.get('wind_ultimate', 'N/A'), "Status": "Review"})
+
+        if 'wave_height' in params and params['wave_height'] <= 0.4:
+            checks.append({"Check": "Design wave height", "Value": params['wave_height'], "Status": "OK (<400 mm)"})
+        else:
+            checks.append({"Check": "Wave height", "Value": params.get('wave_height', 'N/A'), "Status": "Review"})
+
+        if 'concrete_strength' in params and params['concrete_strength'] >= 50:
+            checks.append({"Check": "Pontoon concrete", "Value": params['concrete_strength'], "Status": "OK (≥50 MPa marine)"})
+        else:
+            checks.append({"Check": "Concrete strength", "Value": params.get('concrete_strength', 'N/A'), "Status": "Review"})
+
+        if 'concrete_cover' in params and params['concrete_cover'] >= 50:
+            checks.append({"Check": "Concrete cover", "Value": params['concrete_cover'], "Status": "OK (≥50 mm)"})
+        else:
+            checks.append({"Check": "Concrete cover", "Value": params.get('concrete_cover', 'N/A'), "Status": "Review"})
+
+        if 'steel_galvanizing' in params and params['steel_galvanizing'] >= 600:
+            checks.append({"Check": "Steel galvanizing", "Value": params['steel_galvanizing'], "Status": "OK (≥600 g/m²)"})
+        else:
+            checks.append({"Check": "Galvanizing", "Value": params.get('steel_galvanizing', 'N/A'), "Status": "Review"})
+
+        st.dataframe(pd.DataFrame(checks), use_container_width=True)
+
+        # Download report
+        report_md = f"# CBKM Evaluation Report\n**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+        report_md += "## Extracted Parameters\n" + df_params.to_markdown(index=False) + "\n\n"
+        report_md += "## Compliance Checks\n" + pd.DataFrame(checks).to_markdown(index=False)
+
+        st.download_button("Download Report (Markdown)", report_md, file_name="pontoon_report.md")
+
     except Exception as e:
-        log_action(f"Error: {str(e)}")
-        return {}
+        st.error(f"Processing error: {str(e)}")
 
-    params = {}
-    # Your regex extractions (from drawings like W001)
-    match = re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.IGNORECASE | re.DOTALL)
-    if match:
-        params['live_load_uniform'] = float(match.group(1))
-        params['live_load_point'] = float(match.group(2))
-
-    match = re.search(r"ULTIMATE WIND SPEED V100\s*=\s*(\d+)m/s", full_text, re.IGNORECASE)
-    if match:
-        params['wind_ultimate'] = int(match.group(1))
-
-    match = re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)mm", full_text, re.IGNORECASE)
-    if match:
-        params['wave_height'] = int(match.group(1)) / 1000.0
-
-    # ... (add all other regex from previous code: current, debris, vessel, freeboard, concrete, etc.)
-
-    # Defaults
-    params.setdefault('deck_slope_max', 5)
-    params.setdefault('pile_diameter', 450)
-    params.setdefault('soil_cohesion', 125)
-    params.setdefault('scour_allowance', 500)
-    params.setdefault('pile_tolerance', 100)
-    params.setdefault('berth_length', params.get('vessel_length', 0) * 1.1)
-    params.setdefault('berth_width', params.get('vessel_beam', 0) * 1.5)
-
-    return params
-
-class PontoonEvaluator:
-    def __init__(self, design_params: Dict[str, Any]):
-        self.design_params = design_params
-        self.assumptions = []
-        self.recommendations = []
-        self.compliance_status = {}
-
-    def add_assumption(self, assumption: str, description: str, section: str):
-        self.assumptions.append({"Assumption": assumption, "Description": description, "Report Section": section})
-
-    # ... (add your other methods: check_live_loads, check_wind_loads, etc. as before)
-
-    def evaluate_design(self):
-        # Run checks...
-        overall = "Approved" if all(v == "Compliant" for v in self.compliance_status.values()) else "Conditional"
-        return self.generate_report(overall)
-
-    def generate_report(self, status: str) -> str:
-        report = f"# Report\n**Status:** {status}\n\n"
-        # Add tables, etc.
-        return report
-
-# Main Streamlit app (outside the class!)
-st.title("Pontoon Design Evaluation Web App")
-st.write("Upload your PDF for compliance checks (AS 3962 / AS 4997)")
-
-uploaded_file = st.file_uploader("Choose PDF", type="pdf")
-
-if uploaded_file:
-    params = extract_params_from_pdf(uploaded_file)
-    if params:
-        evaluator = PontoonEvaluator(params)
-        report = evaluator.evaluate_design()
-        st.markdown(report)
-    else:
-        st.error("No parameters extracted. Try a text-selectable PDF.")
+else:
+    st.info("Upload the PDF to begin.")
