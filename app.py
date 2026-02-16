@@ -1,4 +1,4 @@
-# app.py - FINAL FIXED: Robust extraction, all checks, PDF report with logo (no spilling)
+# app.py - FIXED & COMPLETE: No syntax errors, robust extraction, no KeyError, clean PDF report
 
 import streamlit as st
 from pypdf import PdfReader
@@ -7,38 +7,23 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from PIL import Image as PILImage
-import pytesseract
 
-# Logo (must be in repo root)
+# Logo file (upload to repo root as cbkm_logo.png)
 LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 
 st.title("CBKM Pontoon Design Evaluator")
+st.markdown("""
+Upload your pontoon design PDF to extract parameters and check compliance against Australian Standards  
+(not just project notes). Covers AS 3962:2020, AS 4997:2005, AS/NZS 1170.2:2021, AS 3600:2018, QLD Tidal Works.
+""")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
-
-def extract_text_with_ocr(reader):
-    full_text = ""
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        if text.strip():
-            full_text += text + "\n"
-        else:
-            # OCR fallback
-            for img in page.images:
-                try:
-                    pil_img = PILImage.open(BytesIO(img.data))
-                    ocr = pytesseract.image_to_string(pil_img, config='--psm 6')
-                    full_text += ocr + "\n"
-                except:
-                    pass
-    return full_text.strip()
 
 def extract_project_address(text):
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
@@ -50,60 +35,99 @@ def extract_project_address(text):
 if uploaded_file is not None:
     try:
         reader = PdfReader(uploaded_file)
-        full_text = extract_text_with_ocr(reader)
-        st.success(f"PDF processed ({len(reader.pages)} pages) - OCR applied where needed")
+        full_text = ""
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            full_text += text + "\n"
+
+        st.success(f"PDF processed ({len(reader.pages)} pages)")
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address}")
 
-        # === ROBUST PARAMETER EXTRACTION ===
+        # Robust parameter extraction
         params = {}
 
-        patterns = {
-            'live_load_uniform': r"LIVE LOAD.*?(\d+\.\d+)\s*kPa",
-            'live_load_point': r"POINT LOAD.*?(\d+\.\d+)\s*kN",
-            'wind_ultimate': r"V100\s*=\s*(\d+)\s*m/s",
-            'wave_height': r"WAVE HEIGHT\s*<\s*(\d+)\s*mm",
-            'current_velocity': r"STREAM VELOCITY.*?<\s*(\d+\.\d+)\s*m/s",
-            'debris_mat_depth': r"DEBRIS LOADS.*?(\d+\.\d+)\s*m",
-            'debris_log_mass': r"(\d+\.\d+)\s*TONNE\s*LOG",
-            'vessel_length': r"VESSEL LENGTH\s*=\s*(\d+\.\d+)\s*m",
-            'vessel_beam': r"VESSEL BEAM\s*=\s*(\d+\.\d+)\s*m",
-            'vessel_mass': r"VESSEL MASS\s*=\s*(\d+,\d+)\s*kg",
-            'freeboard_dead_min': r"DEAD LOAD ONLY\s*=\s*(\d+)",
-            'freeboard_dead_max': r"DEAD LOAD ONLY\s*=\s*\d+-(\d+)mm",
-            'freeboard_critical': r"MIN\s*(\d+)\s*mm",
-            'deck_slope_max': r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)\s*DEG",
-            'concrete_strength': r"PONTOON CONCRETE STRENGTH.*?(\d+)\s*MPa",
-            'concrete_cover': r"COVER.*?(\d+)\s*mm",
-            'steel_galvanizing': r"COATING MASS.*?(\d+)\s*g/sqm",
-            'aluminium_grade': r"MINIMUM GRADE\s*(\d+\s*T\d+)",
-            'timber_grade': r"MINIMUM\s*(F\d+)",
-            'fixings_grade': r"FIXINGS TO BE\s*(\d+)\s*GRADE",
-            'scour_allowance': r"MAX\s*(\d+)mm\s*SCOUR",
-            'pile_tolerance': r"TOLERANCE.*?(\d+)mm",
-            'soil_cohesion': r"UNDRAINED COHESION\s*=\s*(\d+)kPa"
-        }
+        # Live loads
+        if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
+            params['live_load_uniform'] = float(m.group(1))
+            params['live_load_point'] = float(m.group(2))
 
-        for key, pattern in patterns.items():
-            match = re.search(pattern, full_text, re.I | re.DOTALL)
-            if match:
-                try:
-                    if key in ['vessel_mass']:
-                        params[key] = int(match.group(1).replace(',', ''))
-                    elif key in ['live_load_uniform', 'live_load_point', 'current_velocity', 'debris_mat_depth', 'debris_log_mass', 'wave_height']:
-                        params[key] = float(match.group(1))
-                    else:
-                        params[key] = int(match.group(1))
-                except:
-                    pass
+        # Wind
+        if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
+            params['wind_ultimate'] = int(m.group(1))
+
+        # Wave height
+        if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['wave_height'] = int(m.group(1)) / 1000.0
+
+        # Current velocity
+        if m := re.search(r"VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
+            params['current_velocity'] = float(m.group(1))
+
+        # Debris
+        if m := re.search(r"DEBRIS LOADS.*?(\d+\.\d+)\s*m.*?(\d+\.\d+)\s*TONNE", full_text, re.I | re.DOTALL):
+            params['debris_mat_depth'] = float(m.group(1))
+            params['debris_log_mass'] = float(m.group(2))
+
+        # Vessel
+        if m := re.search(r"LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_length'] = float(m.group(1))
+        if m := re.search(r"BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_beam'] = float(m.group(1))
+        if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+            params['vessel_mass'] = int(m.group(1).replace(',', ''))
+
+        # Freeboard
+        if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
+            params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
+        if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['freeboard_critical'] = int(m.group(1))
+
+        # Deck slope
+        if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
+            params['deck_slope_max'] = int(m.group(1))
+
+        # Concrete
+        if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+            params['concrete_strength'] = int(m.group(1))
+        if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['concrete_cover'] = int(m.group(1))
+
+        # Galvanizing
+        if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
+            params['steel_galvanizing'] = int(m.group(1))
+
+        # Aluminium
+        if m := re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.I | re.DOTALL):
+            params['aluminium_grade'] = m.group(1).replace(" ", "")
+
+        # Timber
+        if m := re.search(r"MINIMUM\s*(F\d+)", full_text, re.I | re.DOTALL):
+            params['timber_grade'] = m.group(1)
+
+        # Fixings
+        if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
+            params['fixings_grade'] = m.group(1)
+
+        # Scour
+        if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
+            params['scour_allowance'] = int(m.group(1))
+
+        # Pile tolerance
+        if m := re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.I | re.DOTALL):
+            params['pile_tolerance'] = int(m.group(1))
+
+        # Soil cohesion
+        if m := re.search(r"COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
+            params['soil_cohesion'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
         if params:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
             st.dataframe(df_params, use_container_width=True)
         else:
-            st.warning("No parameters extracted. Ensure PDF is text-selectable or images are clear for OCR.")
+            st.warning("No parameters extracted. Try a different PDF or check text is selectable.")
 
         # === FULL COMPLIANCE CHECKS ===
         compliance_checks = [
@@ -144,14 +168,14 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.applymap(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), use_container_width=True)
 
-        # PDF Report - No spilling
+        # PDF Report with logo & no spilling
         def generate_pdf():
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=12*mm, leftMargin=12*mm, topMargin=30*mm, bottomMargin=12*mm)
             styles = getSampleStyleSheet()
             elements = []
 
-            # Logo
+            # Logo header
             try:
                 logo = Image(LOGO_PATH, width=140*mm, height=35*mm)
                 logo.hAlign = 'CENTER'
@@ -171,7 +195,7 @@ if uploaded_file is not None:
             elements.append(Paragraph("Extracted Parameters", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
             for k, v in params.items():
-                p_data.append([Paragraph(k, styles['Normal']), Paragraph(str(v), styles['Normal'])])
+                p_data.append([Paragraph(str(k), styles['Normal']), Paragraph(str(v), styles['Normal'])])
             p_table = Table(p_data, colWidths=[90*mm, 90*mm])
             p_table.setStyle(TableStyle([
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -182,7 +206,7 @@ if uploaded_file is not None:
             elements.append(p_table)
             elements.append(Spacer(1, 12*mm))
 
-            # Compliance table (4 columns, wrapped)
+            # Compliance table - 4 columns, wrapped
             elements.append(Paragraph("Compliance Summary", styles['Heading2']))
             c_data = [["Check", "Required", "Design", "Status"]]
             for row in table_data:
@@ -212,7 +236,7 @@ if uploaded_file is not None:
         st.download_button("Download PDF Report (with logo)", pdf, "pontoon_report.pdf", "application/pdf")
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error: {str(e)}")
 
 else:
     st.info("Upload PDF to begin.")
