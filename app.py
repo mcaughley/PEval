@@ -26,11 +26,11 @@ st.markdown("Upload pontoon design PDF → extract parameters → auto-check com
 # Sidebar for editable footer
 with st.sidebar:
     st.header("PDF Report Footer")
-    engineer_name = st.text_input("Engineer Name", "Matt McAughley")
-    rpeq_number = st.text_input("RPEQ Number", "RPEQ XXXXXX (Certification Pending)")
+    engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
+    rpeq_number = st.text_input("RPEQ Number", "25332")
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
-    company_contact = st.text_input("Contact", "info@cbkm.au | Brisbane, QLD")
-    signature_note = st.text_input("Signature Line", "Signed: ______________________________")
+    company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
+    signature_note = st.text_input("Signature Line", "")
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
@@ -295,3 +295,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+
