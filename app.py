@@ -271,19 +271,21 @@ if uploaded_file is not None:
             elements.append(PageBreak())  # Non-compliant + Project Risk on last page
 
             # Non-Compliant Items Risk (on last page)
-           
-        summary_text = f"""
+            non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
+            non_compliant_count = len(non_compliant)
+            review_count = len([r for r in table_data if r["Status"] == "Review"])
+            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
+
+            summary_text = f"""
          This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
-
             Overall project risk level: **{risk_level}**.
-
             - Total items checked: {len(table_data)}
             - Compliant: {len(table_data) - non_compliant_count}
             - Conditional: {conditional_count}
             - Review items: {review_count}
-
            """
-            non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
+
             if non_compliant:
                 elements.append(Paragraph("Project Risks", styles['Heading2']))
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
@@ -307,13 +309,11 @@ if uploaded_file is not None:
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))  # Gap before Project Risk
 
-            non_compliant_count = len(non_compliant)
-            review_count = len([r for r in table_data if r["Status"] == "Review"])
-            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+            # Project Risk section (dynamic summary + risk matrix)
+            elements.append(Paragraph("Project Risk", styles['Heading2']))
+            elements.append(Spacer(1, 12*mm))
 
-            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
-                   
-            # Split and add paragraphs
+            # Split and add paragraphs for summary_text
             for line in summary_text.split('\n'):
                 if line.strip():
                     elements.append(Paragraph(line, styles['Normal']))
@@ -337,8 +337,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-
-
-
-
-
