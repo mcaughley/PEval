@@ -1,4 +1,4 @@
-# app.py - FIXED & UPDATED: Added 5th "Reference" column to Compliance Summary table in PDF report
+# app.py - UPDATED: Added 5th "Reference" column to Compliance Summary table in PDF
 
 import streamlit as st
 from pypdf import PdfReader
@@ -52,7 +52,7 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # Parameter extraction (flexible regex)
+        # Parameter extraction
         params = {}
 
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
@@ -121,7 +121,7 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
 
-        # Full compliance checks (with references)
+        # Full compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -239,7 +239,7 @@ if uploaded_file is not None:
             elements.append(p_table)
             elements.append(PageBreak())
 
-            # Compliance Summary table with 5th column: Reference
+            # Compliance Summary table with 5th column "Reference"
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status", "Reference"]]
             for row in table_data:
@@ -250,7 +250,7 @@ if uploaded_file is not None:
                     Paragraph(row['Status'], styles['Normal']),
                     Paragraph(row['Reference'], styles['Normal'])
                 ])
-            c_table = Table(c_data, colWidths=[50*mm, 45*mm, 35*mm, 30*mm, 40*mm], repeatRows=1)
+            c_table = Table(c_data, colWidths=[50*mm, 40*mm, 35*mm, 30*mm, 45*mm], repeatRows=1)
             c_table.setStyle(TableStyle([
                 ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                 ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
@@ -259,12 +259,12 @@ if uploaded_file is not None:
                 ('VALIGN', (0,0), (-1,-1), 'TOP'),
                 ('FONTSIZE', (0,1), (-1,-1), 9),
                 ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
-                ('ALIGN', (4,1), (4,-1), 'LEFT'),  # Reference column left-aligned
+                ('ALIGN', (4,1), (4,-1), 'LEFT'),  # Reference column left-aligned for readability
             ]))
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Project Risk Assessment (combined non-compliant + summary + matrix + free space)
+            # Project Risk Assessment (combined)
             elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
 
