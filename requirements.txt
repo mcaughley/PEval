@@ -1,8 +1,7 @@
 streamlit==1.35.0
 pypdf==4.2.0
-pdf2image==1.17.0
+pymupdf==1.24.1         # works instead of pdf2image
 pytesseract==0.3.13
-Pillow==10.4.0
 pandas==2.2.2
 reportlab==4.1.0
 python-dateutil==2.9.0.post0
