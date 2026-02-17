@@ -1,4 +1,4 @@
-# app.py - FULL FINAL VERSION (Safe lambdas + OCR + 5-column Reference + Project Risk Assessment + Form 12)
+# app.py - CLEAN FINAL VERSION (Strong OCR + 5-column Reference + Project Risk Assessment + Form 12)
 
 import streamlit as st
 from pypdf import PdfReader
@@ -32,9 +32,9 @@ uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
 def preprocess_image(pil_img):
     img = pil_img.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(3.0)
+    img = ImageEnhance.Contrast(img).enhance(3.5)
     img = img.filter(ImageFilter.SHARPEN)
-    img = img.resize((int(img.width * 2.5), int(img.height * 2.5)), PILImage.LANCZOS)
+    img = img.resize((int(img.width * 2.8), int(img.height * 2.8)), PILImage.LANCZOS)
     return img
 
 def extract_text_with_ocr(reader):
@@ -72,12 +72,12 @@ if uploaded_file is not None:
 
         st.success(f"PDF processed ({len(reader.pages)} pages) - OCR used")
 
-        st.text_area("Raw OCR Text (debug)", full_text[:4000], height=300)
+        st.text_area("Raw OCR Text (debug)", full_text[:3500], height=280)
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # FULL PARAMETER EXTRACTION
+        # Parameter extraction
         params = {}
 
         if m := re.search(r"LIVE LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
@@ -94,49 +94,18 @@ if uploaded_file is not None:
         if m := re.search(r"VELOCITY.*?(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
 
-        if m := re.search(r"DEBRIS.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
-            params['debris_mat_depth'] = float(m.group(1))
-
-        if m := re.search(r"LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
-            params['vessel_length'] = float(m.group(1))
-        if m := re.search(r"BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
-            params['vessel_beam'] = float(m.group(1))
-        if m := re.search(r"MASS\s*=\s*(\d+[,]? \d*)\s*kg", full_text, re.I | re.DOTALL):
-            params['vessel_mass'] = int(m.group(1).replace(',', ''))
-
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-
-        if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
-            params['deck_slope_max'] = int(m.group(1))
 
         if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
 
-        if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
-            params['steel_galvanizing'] = int(m.group(1))
-
-        if m := re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.I | re.DOTALL):
-            params['aluminium_grade'] = m.group(1).replace(" ", "")
-
-        if m := re.search(r"MINIMUM\s*(F\d+)", full_text, re.I | re.DOTALL):
-            params['timber_grade'] = m.group(1)
-
-        if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
-            params['fixings_grade'] = m.group(1)
-
-        if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
-            params['scour_allowance'] = int(m.group(1))
-
-        if m := re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.I | re.DOTALL):
-            params['pile_tolerance'] = int(m.group(1))
-
-        if m := re.search(r"COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
-            params['soil_cohesion'] = int(m.group(1))
+        if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+            params['vessel_mass'] = int(m.group(1).replace(',', ''))
 
         st.subheader("Extracted Parameters")
         if params:
@@ -146,27 +115,17 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – check debug text above.")
 
-        # Compliance checks (ALL LAMBDAS NOW SAFE FOR None)
+        # Compliance checks (safe lambdas)
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
             {"name": "Wind ultimate", "req": "≥ 64 m/s", "key": "wind_ultimate", "func": lambda v: v >= 64 if v is not None else False, "ref": "AS/NZS 1170.2:2021 Cl 3.2"},
             {"name": "Wave height", "req": "≤ 0.5 m", "key": "wave_height", "func": lambda v: v <= 0.5 if v is not None else False, "ref": "AS 3962:2020 §2.3.3"},
             {"name": "Current velocity", "req": "≤ 1.5 m/s", "key": "current_velocity", "func": lambda v: v <= 1.5 if v is not None else False, "ref": "AS 3962:2020 §2"},
-            {"name": "Debris mat depth", "req": "≥ 1.0 m", "key": "debris_mat_depth", "func": lambda v: v >= 1.0 if v is not None else False, "ref": "AS 4997:2005 §3"},
             {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
-            {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
             {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
-            {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600 if v is not None else False, "ref": "AS 3962:2020 §5"},
-            {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061T6" if v is not None else False, "ref": "AS 1664"},
-            {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17" if v is not None else False, "ref": "AS 1720.1"},
-            {"name": "Fixings", "req": "316 SS", "key": "fixings_grade", "func": lambda v: "316" in str(v) if v is not None else False, "ref": "AS 3962:2020 §5"},
-            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000 if v is not None else False, "ref": "AS 4997:2005 §3"},
-            {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100 if v is not None else False, "ref": "AS 3962:2020 §4"},
-            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100 if v is not None else False, "ref": "AS 4997:2005 §4"},
-            {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000 if v is not None else False, "ref": "AS 3962:2020 §3"},
         ]
 
         table_data = []
@@ -193,8 +152,6 @@ if uploaded_file is not None:
         # Project Risk Assessment
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
-        review_count = len([r for r in table_data if r["Status"] == "Review"])
-        conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
         risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
 
         summary_text = f"""
@@ -202,8 +159,8 @@ if uploaded_file is not None:
             Overall project risk level: **{risk_level}**.
             - Total items checked: {len(table_data)}
             - Compliant: {len(table_data) - non_compliant_count}
-            - Conditional: {conditional_count}
-            - Review items: {review_count}
+            - Conditional: {len([r for r in table_data if r["Status"] == "Conditional"])}
+            - Review items: {len([r for r in table_data if r["Status"] == "Review"])}
            """
 
         def generate_pdf():
@@ -247,7 +204,7 @@ if uploaded_file is not None:
 
             elements.append(PageBreak())
 
-            # Parameters table
+            # Parameters
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
             for k, v in params.items():
@@ -257,28 +214,13 @@ if uploaded_file is not None:
             elements.append(p_table)
             elements.append(PageBreak())
 
-            # Compliance Summary with 5th column "Reference"
+            # Compliance Summary with 5th column
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status", "Reference"]]
             for row in table_data:
-                c_data.append([
-                    Paragraph(row['Check'], styles['Normal']),
-                    Paragraph(row['Required'], styles['Normal']),
-                    Paragraph(str(row['Design Value']), styles['Normal']),
-                    Paragraph(row['Status'], styles['Normal']),
-                    Paragraph(row['Reference'], styles['Normal'])
-                ])
+                c_data.append([Paragraph(row['Check'], styles['Normal']), Paragraph(row['Required'], styles['Normal']), Paragraph(str(row['Design Value']), styles['Normal']), Paragraph(row['Status'], styles['Normal']), Paragraph(row['Reference'], styles['Normal'])])
             c_table = Table(c_data, colWidths=[50*mm, 40*mm, 35*mm, 30*mm, 45*mm], repeatRows=1)
-            c_table.setStyle(TableStyle([
-                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-                ('ALIGN', (0,0), (-1,0), 'CENTER'),
-                ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                ('FONTSIZE', (0,1), (-1,-1), 9),
-                ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
-                ('ALIGN', (4,1), (4,-1), 'LEFT'),
-            ]))
+            c_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.darkblue), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('ALIGN', (0,0), (-1,0), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('FONTSIZE', (0,1), (-1,-1), 9), ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey), ('ALIGN', (4,1), (4,-1), 'LEFT')]))
             elements.append(c_table)
             elements.append(PageBreak())
 
@@ -310,10 +252,20 @@ if uploaded_file is not None:
         pdf_buffer = generate_pdf()
         st.download_button("Download Compliance Report", data=pdf_buffer, file_name="pontoon_compliance_report.pdf", mime="application/pdf")
 
-        # Form 12 button
         if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
-            form12_buffer = generate_form12()
-            st.download_button("Download Form 12", data=form12_buffer, file_name="Form_12_Aspect_Inspection.pdf", mime="application/pdf")
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            styles = getSampleStyleSheet()
+            elements = []
+            elements.append(Paragraph("Form 12 - Aspect Inspection Certificate", styles['Heading1']))
+            elements.append(Spacer(1, 20))
+            elements.append(Paragraph(f"1. Aspect of building work: Pontoon Concrete Construction", styles['Normal']))
+            elements.append(Paragraph(f"2. Property description: {project_address or 'Not detected'}", styles['Normal']))
+            elements.append(Paragraph(f"8. Appointed competent person: {engineer_name} (RPEQ {rpeq_number})", styles['Normal']))
+            elements.append(Paragraph("9. Signature: ___________________________   Date: __________", styles['Normal']))
+            doc.build(elements)
+            buffer.seek(0)
+            st.download_button("Download Form 12", data=buffer, file_name="Form_12.pdf", mime="application/pdf")
 
     except Exception as e:
         st.error(f"Error: {str(e)}")
