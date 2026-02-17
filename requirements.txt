@@ -1,20 +1,9 @@
-# Streamlit web app framework
 streamlit==1.35.0
-
-# PDF parsing & OCR
 pypdf==4.2.0
 pdf2image==1.17.0
 pytesseract==0.3.13
 Pillow==10.3.0
-
-# Data processing
 pandas==2.2.2
-
-# Report generation
 reportlab==4.1.0
-
-# Date/time & utilities
 python-dateutil==2.9.0.post0
-
-# Optional: if you use tables or logos in future versions
 numpy==1.26.4
