@@ -1,4 +1,4 @@
-# app.py - FIXED: Arrow error + deprecation warning (no other changes)
+# app.py - FIXED & COMPLETE: Added Generate Form 12 button + dynamic population from PDF data
 
 import streamlit as st
 from pypdf import PdfReader
@@ -12,7 +12,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
 
-# Logo
+# Logo (must be in repo root)
 LOGO_PATH = "cbkm_logo.png"
 
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
@@ -20,7 +20,7 @@ st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
-# Sidebar for footer (title page only)
+# Sidebar for editable footer (title page only) + Form 12 details
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
     engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
@@ -32,7 +32,7 @@ with st.sidebar:
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
 def extract_project_address(text):
-    fallback = ""
+    fallback = ""  # blank default
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
@@ -52,8 +52,9 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # Parameter extraction
+        # Parameter extraction (flexible regex)
         params = {}
+
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
             params['live_load_point'] = float(m.group(2))
@@ -115,7 +116,7 @@ if uploaded_file is not None:
         st.subheader("Extracted Parameters")
         if params:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
-            df_params["Value"] = df_params["Value"].astype(str)
+            df_params["Value"] = df_params["Value"].astype(str)  # Fix Arrow type error
             st.dataframe(df_params, width='stretch')
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
@@ -144,9 +145,18 @@ if uploaded_file is not None:
         ]
 
         table_data = []
+        non_compliant_count = 0
+        conditional_count = 0
+        review_count = 0
         for c in compliance_checks:
             v = params.get(c["key"])
             status = "Compliant" if c["func"](v) is True else ("Review" if c["func"](v) is False else c["func"](v) if isinstance(c["func"](v), str) else "N/A")
+            if status == "Review":
+                review_count += 1
+                non_compliant_count += 1
+            if status == "Conditional":
+                conditional_count += 1
+                non_compliant_count += 1
             table_data.append({
                 "Check": c["name"],
                 "Required": c["req"],
@@ -157,22 +167,25 @@ if uploaded_file is not None:
 
         df_checks = pd.DataFrame(table_data)
 
-        # FIX 1: Force Design Value to string (prevents Arrow error)
+        # Force Design Value to string (prevents Arrow error)
         df_checks["Design Value"] = df_checks["Design Value"].astype(str)
 
         st.subheader("Compliance Summary")
-        # FIX 2: applymap → map (removes deprecation warning)
         st.dataframe(
             df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]),
             width='stretch'
         )
 
-        # PDF generation (unchanged)
+        # PDF generation function
         def generate_pdf():
             buffer = BytesIO()
             doc = SimpleDocTemplate(
-                buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm,
-                topMargin=20*mm, bottomMargin=50*mm
+                buffer,
+                pagesize=A4,
+                rightMargin=15*mm,
+                leftMargin=15*mm,
+                topMargin=20*mm,
+                bottomMargin=50*mm
             )
             styles = getSampleStyleSheet()
             elements = []
@@ -222,7 +235,7 @@ if uploaded_file is not None:
 
             elements.append(PageBreak())
 
-            # Parameters table
+            # Parameters table (page 2)
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
             for k, v in params.items():
@@ -237,7 +250,7 @@ if uploaded_file is not None:
             elements.append(p_table)
             elements.append(PageBreak())
 
-            # Compliance table
+            # Compliance table (page 3)
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status"]]
             for row in table_data:
@@ -260,7 +273,7 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Non-Compliant Items Risk
+            # Non-Compliant Items Risk + Project Risk (last page)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
                 elements.append(Paragraph("Non-Compliant Items Risk", styles['Heading2']))
@@ -285,9 +298,11 @@ if uploaded_file is not None:
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))
 
-            # Project Risk
+            # Project Risk section
             elements.append(Paragraph("Project Risk", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
+
+            # 10 lines of free space
             for _ in range(10):
                 elements.append(Spacer(1, 12*mm))
 
@@ -295,13 +310,85 @@ if uploaded_file is not None:
             buffer.seek(0)
             return buffer
 
-        pdf_buffer = generate_pdf()
-        st.download_button(
-            label="Download Report (Footer on Title Page Only)",
-            data=pdf_buffer,
-            file_name="pontoon_compliance_report.pdf",
-            mime="application/pdf"
-        )
+        # Form 12 generation (dynamic from PDF data)
+        def generate_form12():
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=20*mm, bottomMargin=20*mm)
+            styles = getSampleStyleSheet()
+            elements = []
+
+            elements.append(Paragraph("Form 12 - Aspect Inspection Certificate (Appointed Competent Person)", styles['Heading1']))
+            elements.append(Spacer(1, 12*mm))
+
+            # 1. Aspect of building work
+            aspect = "Pontoon Concrete Construction"
+            if 'concrete_strength' in params and 'concrete_cover' in params:
+                aspect += f" - Strength {params['concrete_strength']} MPa, Cover {params['concrete_cover']} mm"
+            elements.append(Paragraph(f"1. Aspect of building work: {aspect}", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 2. Property description
+            elements.append(Paragraph(f"2. Property description: {project_address if project_address else 'Not detected'}", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 3. Building/structure description
+            elements.append(Paragraph("3. Building/structure description: Commercial Use Pontoon (GCM-2136)", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 4. Description of extent certified
+            extent = "All pontoon concrete works including pontoon body, abutment block, and associated reinforcement/cover as detailed in drawings."
+            if 'freeboard_dead' in params:
+                extent += f" Freeboard (dead): {params['freeboard_dead']:.0f} mm."
+            elements.append(Paragraph(f"4. Description of extent certified: {extent}", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 5. Basis of certification
+            basis = "Visual inspection of drawings and compliance check against AS 3600, AS 3962, AS 4997. Parameters extracted and verified via automated evaluator."
+            elements.append(Paragraph(f"5. Basis of certification: {basis}", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 6. Reference documentation
+            elements.append(Paragraph("6. Reference documentation: Uploaded PDF drawings (GCM-2136 series)", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 7. Building certifier reference (blank)
+            elements.append(Paragraph("7. Building certifier reference number and building development approval number: [To be completed manually]", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 8. Details of appointed competent person
+            elements.append(Paragraph(f"8. Details of appointed competent person: {engineer_name}", styles['Normal']))
+            elements.append(Paragraph(f"RPEQ Number: {rpeq_number}", styles['Normal']))
+            elements.append(Paragraph(f"Company: {company_name}", styles['Normal']))
+            elements.append(Paragraph(f"Contact: {company_contact}", styles['Normal']))
+            elements.append(Spacer(1, 6*mm))
+
+            # 9. Signature (placeholder)
+            elements.append(Paragraph("9. Signature of appointed competent person: ______________________________   Date: __________", styles['Normal']))
+
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer
+
+        # Buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Generate Compliance Report"):
+                pdf_buffer = generate_pdf()
+                st.download_button(
+                    label="Download Compliance Report",
+                    data=pdf_buffer,
+                    file_name="pontoon_compliance_report.pdf",
+                    mime="application/pdf"
+                )
+        with col2:
+            if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
+                form12_buffer = generate_form12()
+                st.download_button(
+                    label="Download Form 12",
+                    data=form12_buffer,
+                    file_name="Form_12_Aspect_Inspection.pdf",
+                    mime="application/pdf"
+                )
 
     except Exception as e:
         st.error(f"Error: {str(e)}")
