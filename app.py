@@ -11,15 +11,11 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-
 # Logo (must be in repo root)
 LOGO_PATH = "cbkm_logo.png"
-
 st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
-
 st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
-
 # Sidebar for editable footer (title page only)
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
@@ -28,17 +24,14 @@ with st.sidebar:
     company_name = st.text_input("Company", "CBKM Consulting Pty Ltd")
     company_contact = st.text_input("Contact", "mcaughley@cbkm.au | 0434 173 808")
     signature_note = st.text_input("Signature Line", "")
-
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
-
 def extract_project_address(text):
-    fallback = ""  # blank default
+    fallback = "" # blank default
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
     return fallback
-
 if uploaded_file is not None:
     try:
         reader = PdfReader(uploaded_file)
@@ -46,81 +39,60 @@ if uploaded_file is not None:
         for page in reader.pages:
             text = page.extract_text() or ""
             full_text += text + "\n"
-
         st.success(f"PDF processed ({len(reader.pages)} pages)")
-
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
-
         # Parameter extraction (flexible regex)
         params = {}
-
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
             params['live_load_point'] = float(m.group(2))
-
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-
         if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
-
         if m := re.search(r"VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
-
         if m := re.search(r"DEBRIS LOADS.*?(\d+\.\d+)\s*m.*?(\d+\.\d+)\s*TONNE", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
             params['debris_log_mass'] = float(m.group(2))
-
         if m := re.search(r"LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
         if m := re.search(r"BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
         if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
-
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-
         if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
-
         if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
-
         if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
-
         if m := re.search(r"MINIMUM GRADE\s*(\d+\s*T\d+)", full_text, re.I | re.DOTALL):
             params['aluminium_grade'] = m.group(1).replace(" ", "")
-
         if m := re.search(r"MINIMUM\s*(F\d+)", full_text, re.I | re.DOTALL):
             params['timber_grade'] = m.group(1)
-
         if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
             params['fixings_grade'] = m.group(1)
-
         if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
-
         if m := re.search(r"TOLERANCE.*?(\d+)mm", full_text, re.I | re.DOTALL):
             params['pile_tolerance'] = int(m.group(1))
-
         if m := re.search(r"COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
             params['soil_cohesion'] = int(m.group(1))
-
         st.subheader("Extracted Parameters")
         if params:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
-            df_params["Value"] = df_params["Value"].astype(str)  # Fix Arrow type error
+            df_params["Value"] = df_params["Value"].astype(str) # Fix Arrow type error
             st.dataframe(df_params, width='stretch')
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
-
         # Full compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
@@ -185,30 +157,30 @@ if uploaded_file is not None:
 
             # === ELEGANT TITLE PAGE (logo + details + footer) ===
             try:
-                logo = Image(LOGO_PATH, width=100*mm, height=50*mm)
-                logo.hAlign = 'CENTRE'
+                logo = Image(LOGO_PATH, width=180*mm, height=60*mm)
+                logo.hAlign = 'CENTER'
                 elements.append(logo)
             except:
                 elements.append(Paragraph("CBKM Logo", styles['Heading1']))
 
-            elements.append(Spacer(1, 4*mm))
+            elements.append(Spacer(1, 50*mm))
 
             title_style = styles['Title']
             title_style.fontSize = 28
             title_style.alignment = 1
-            elements.append(Paragraph("PROJECT DESIGN REVIEW", title_style))
+            elements.append(Paragraph("CBKM Pontoon Compliance Report", title_style))
 
             elements.append(Spacer(1, 20*mm))
 
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
-            elements.append(Spacer(1, 5*mm))
+            elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(project_address if project_address else "Not detected", styles['Heading3']))
-            elements.append(Spacer(1, 5*mm))
+            elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
 
             # Footer table on title page only
             footer_data = [
-                ["Approved by:", engineer_name],
+                ["Prepared by:", engineer_name],
                 ["RPEQ Number:", rpeq_number],
                 ["Date:", datetime.now().strftime('%d %B %Y')],
                 ["Signature:", signature_note],
@@ -272,20 +244,6 @@ if uploaded_file is not None:
 
             # Non-Compliant Items Risk (on last page)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
-            non_compliant_count = len(non_compliant)
-            review_count = len([r for r in table_data if r["Status"] == "Review"])
-            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
-            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
-
-            summary_text = f"""
-         This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
-            Overall project risk level: **{risk_level}**.
-            - Total items checked: {len(table_data)}
-            - Compliant: {len(table_data) - non_compliant_count}
-            - Conditional: {conditional_count}
-            - Review items: {review_count}
-           """
-
             if non_compliant:
                 elements.append(Paragraph("Project Risks", styles['Heading2']))
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
@@ -307,9 +265,13 @@ if uploaded_file is not None:
                     ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
                 ]))
                 elements.append(nc_table)
-                elements.append(Spacer(1, 12*mm))  # Gap before Project Risk
+                elements.append(Spacer(1, 12*mm)) # Gap before Project Risk
+            non_compliant_count = len(non_compliant)
+            review_count = len([r for r in table_data if r["Status"] == "Review"])
+            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
 
-            # Split and add paragraphs for summary_text
+            # Split and add paragraphs
             for line in summary_text.split('\n'):
                 if line.strip():
                     elements.append(Paragraph(line, styles['Normal']))
@@ -333,14 +295,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-
-
-
-
-
-
-
-
-
-
-
