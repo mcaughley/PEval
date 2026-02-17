@@ -1,4 +1,4 @@
-# app.py - RESTORED & FIXED: Project Risk section + Form 12 button, Arrow error fixed, no deprecation warning
+# app.py - FIXED & RESTORED: Combined "Project Risk Assessment" section, syntax fixed, Arrow error fixed
 
 import streamlit as st
 from pypdf import PdfReader
@@ -290,10 +290,13 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Non-Compliant Items Risk
+            # Combined "Project Risk Assessment" section (on last page)
+            elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
+            elements.append(Spacer(1, 12*mm))
+
+            # Non-Compliant Items table (first part of section)
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
-                elements.append(Paragraph("Non-Compliant Items Risk", styles['Heading2']))
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
                 for row in non_compliant:
                     nc_data.append([
@@ -315,11 +318,22 @@ if uploaded_file is not None:
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))
 
-            # Project Risk section
-            elements.append(Paragraph("Project Risk", styles['Heading2']))
-            elements.append(Spacer(1, 12*mm))
+            # Project Risk summary (dynamic, in Matt's tone)
+            non_compliant_count = len(non_compliant)
+            review_count = len([r for r in table_data if r["Status"] == "Review"])
+            conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+            risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
 
-            # Add your summary_text exactly as provided
+            summary_text = f"""
+         This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
+            Overall project risk level: **{risk_level}**.
+            - Total items checked: {len(table_data)}
+            - Compliant: {len(table_data) - non_compliant_count}
+            - Conditional: {conditional_count}
+            - Review items: {review_count}
+           """
+
+            # Add summary paragraphs
             for line in summary_text.split('\n'):
                 if line.strip():
                     elements.append(Paragraph(line, styles['Normal']))
@@ -335,91 +349,11 @@ if uploaded_file is not None:
 
         pdf_buffer = generate_pdf()
         st.download_button(
-            label="Download Compliance Report",
+            label="Download Report (Footer on Title Page Only)",
             data=pdf_buffer,
             file_name="pontoon_compliance_report.pdf",
             mime="application/pdf"
         )
-
-        # Form 12 generation (dynamic from PDF data)
-        def generate_form12():
-            buffer = BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=15*mm, leftMargin=15*mm, topMargin=20*mm, bottomMargin=20*mm)
-            styles = getSampleStyleSheet()
-            elements = []
-
-            elements.append(Paragraph("Form 12 - Aspect Inspection Certificate (Appointed Competent Person)", styles['Heading1']))
-            elements.append(Spacer(1, 12*mm))
-
-            # 1. Aspect of building work
-            aspect = "Pontoon Concrete Construction"
-            if 'concrete_strength' in params and 'concrete_cover' in params:
-                aspect += f" - Strength {params['concrete_strength']} MPa, Cover {params['concrete_cover']} mm"
-            elements.append(Paragraph(f"1. Aspect of building work: {aspect}", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 2. Property description
-            elements.append(Paragraph(f"2. Property description: {project_address if project_address else 'Not detected'}", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 3. Building/structure description
-            elements.append(Paragraph("3. Building/structure description: Commercial Use Pontoon (GCM-2136)", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 4. Description of extent certified
-            extent = "All pontoon concrete works including pontoon body, abutment block, and associated reinforcement/cover as detailed in drawings."
-            if 'freeboard_dead' in params:
-                extent += f" Freeboard (dead): {params['freeboard_dead']:.0f} mm."
-            elements.append(Paragraph(f"4. Description of extent certified: {extent}", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 5. Basis of certification
-            basis = "Visual inspection of drawings and compliance check against AS 3600, AS 3962, AS 4997. Parameters extracted and verified via automated evaluator."
-            elements.append(Paragraph(f"5. Basis of certification: {basis}", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 6. Reference documentation
-            elements.append(Paragraph("6. Reference documentation: Uploaded PDF drawings (GCM-2136 series)", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 7. Building certifier reference (blank)
-            elements.append(Paragraph("7. Building certifier reference number and building development approval number: [To be completed manually]", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 8. Details of appointed competent person
-            elements.append(Paragraph(f"8. Details of appointed competent person: {engineer_name}", styles['Normal']))
-            elements.append(Paragraph(f"RPEQ Number: {rpeq_number}", styles['Normal']))
-            elements.append(Paragraph(f"Company: {company_name}", styles['Normal']))
-            elements.append(Paragraph(f"Contact: {company_contact}", styles['Normal']))
-            elements.append(Spacer(1, 6*mm))
-
-            # 9. Signature (placeholder)
-            elements.append(Paragraph("9. Signature of appointed competent person: ______________________________   Date: __________", styles['Normal']))
-
-            doc.build(elements)
-            buffer.seek(0)
-            return buffer
-
-        # Buttons
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Generate Compliance Report"):
-                pdf_buffer = generate_pdf()
-                st.download_button(
-                    label="Download Compliance Report",
-                    data=pdf_buffer,
-                    file_name="pontoon_compliance_report.pdf",
-                    mime="application/pdf"
-                )
-        with col2:
-            if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
-                form12_buffer = generate_form12()
-                st.download_button(
-                    label="Download Form 12",
-                    data=form12_buffer,
-                    file_name="Form_12_Aspect_Inspection.pdf",
-                    mime="application/pdf"
-                )
 
     except Exception as e:
         st.error(f"Error: {str(e)}")
