@@ -1,7 +1,3 @@
-Understood ✅ — from now on, I’ll provide only the complete updated app.py code, with no extra commentary or text.  
-
-Here’s your fully updated app.py (ready for GitHub + Streamlit Cloud):
-
 ``python
 import streamlit as st
 import re
@@ -10,13 +6,6 @@ from datetime import datetime
 from io import BytesIO
 import pytesseract
 from PIL import Image
-
-try:
-    from pdf2image import convertfrombytes
-except ImportError:
-    st.error("❌ pdf2image not installed or Poppler missing. Ensure requirements.txt and packages.txt are set correctly.")
-    st.stop()
-
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
@@ -26,8 +15,8 @@ st.setpageconfig(pagetitle="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 
 st.markdown("""
-Upload pontoon design PDF drawings → extract engineering parameters → 
-evaluate compliance against relevant Australian Standards.
+Upload pontoon design PDF drawings → extract engineering parameters and 
+evaluate compliance against key Australian Standards.
 
 References: AS 3962:2020, AS 4997:2005, AS/NZS 1170.2:2021, AS 3600:2018, QLD Tidal Works.
 """)
@@ -35,21 +24,24 @@ References: AS 3962:2020, AS 4997:2005, AS/NZS 1170.2:2021, AS 3600:2018, QLD Ti
 uploadedfile = st.fileuploader("📄 Upload Pontoon PDF Drawings", type="pdf")
 
 def extracttextocr(pdfbytes: bytes):
-    st.info("Running OCR on all pages... please wait ⏳")
-    pages = convertfrombytes(pdfbytes, dpi=200)
+    from PyPDF2 import PdfReader
+    reader = PdfReader(BytesIO(pdfbytes))
     alltext = ""
-    pagetexts = []
-    progress = st.progress(0)
-
-    for i, page in enumerate(pages, 1):
-        text = pytesseract.imagetostring(page)
-        text = re.sub(r"\s+", " ", text)
-        pagetexts.append(text)
-        alltext += f"\n{text}"
-        progress.progress(i / len(pages))
-
-    progress.empty()
-    return alltext.strip(), pagetexts
+    for i, page in enumerate(reader.pages, 1):
+        pagetext = page.extracttext()
+        if not pagetext:
+            st.warning(f"Page {i} has no embedded text; OCR will be attempted.")
+            try:
+                import fitz  # PyMuPDF
+                doc = fitz.open(stream=pdfbytes, filetype="pdf")
+                pageimg = doc.loadpage(i-1).getpixmap()
+                imgbytes = pageimg.tobytes("png")
+                pagetext = pytesseract.imagetostring(Image.open(BytesIO(imgbytes)))
+            except Exception:
+                pagetext = ""
+        alltext += "\n" + pagetext
+    alltext = re.sub(r"\s+", " ", alltext)
+    return alltext.strip()
 
 def extractprojectaddress(fulltext: str) -> str:
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
@@ -71,16 +63,15 @@ def safefloat(pattern: str, text: str, default=0.0) -> float:
 if uploadedfile:
     try:
         pdfbytes = uploadedfile.read()
-        fulltext, pagetexts = extracttextocr(pdfbytes)
-        st.success("✅ OCR extraction complete")
+        st.info("Processing PDF – extracting text and running OCR if needed ⏳")
+        fulltext = extracttextocr(pdfbytes)
+        st.success("✅ Text extraction complete")
 
-        with st.expander("🔍 View OCR Text (per page)"):
-            for i, pagetext in enumerate(pagetexts, 1):
-                st.markdown(f"Page {i}:")
-                st.textarea(f"OCR Output Page {i}", pagetext, height=200)
+        with st.expander("🔍 View Extracted Text"):
+            st.textarea("Extracted Text Output", fulltext[:10000], height=200)
 
         detectedaddress = extractprojectaddress(fulltext)
-        projectaddress = st.textinput("📍 Project Address (edit if incorrect)", detectedaddress)
+        projectaddress = st.textinput("📍 Project Address (edit if needed)", detectedaddress)
 
         params = {}
         params["Vessel Length"] = f"{safefloat(r'LENGTH:\\s?)\\sm', fulltext)} m"
@@ -179,7 +170,7 @@ if uploadedfile:
             st.downloadbutton(
                 "⬇️ Download Evaluation Report",
                 buf,
-                filename="pontoonevaluation_report.pdf",
+                filename="pontoonevaluationreport.pdf",
                 mime="application/pdf"
             )
 
