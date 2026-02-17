@@ -1,3 +1,8 @@
+Understood ✅ — from now on, I’ll provide only the complete updated app.py code, with no extra commentary or text.  
+
+Here’s your fully updated app.py (ready for GitHub + Streamlit Cloud):
+
+``python
 import streamlit as st
 import re
 import pandas as pd
@@ -5,110 +10,100 @@ from datetime import datetime
 from io import BytesIO
 import pytesseract
 from PIL import Image
-from pdf2image import convert_from_bytes
+
+try:
+    from pdf2image import convertfrombytes
+except ImportError:
+    st.error("❌ pdf2image not installed or Poppler missing. Ensure requirements.txt and packages.txt are set correctly.")
+    st.stop()
+
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 
-# ------------------- PAGE SETUP -------------------
-st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
+st.setpageconfig(pagetitle="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 
 st.markdown("""
 Upload pontoon design PDF drawings → extract engineering parameters → 
 evaluate compliance against relevant Australian Standards.
 
-**References:** AS 3962:2020, AS 4997:2005, AS/NZS 1170.2:2021, AS 3600:2018, QLD Tidal Works.
+References: AS 3962:2020, AS 4997:2005, AS/NZS 1170.2:2021, AS 3600:2018, QLD Tidal Works.
 """)
 
-uploaded_file = st.file_uploader("📄 Upload Pontoon PDF Drawings", type="pdf")
+uploadedfile = st.fileuploader("📄 Upload Pontoon PDF Drawings", type="pdf")
 
-
-# ------------------- HELPER FUNCTIONS -------------------
-
-def extract_text_ocr(pdf_bytes: bytes):
-    """Convert each PDF page to image and extract text via OCR."""
+def extracttextocr(pdfbytes: bytes):
     st.info("Running OCR on all pages... please wait ⏳")
-    pages = convert_from_bytes(pdf_bytes, dpi=200)
-    all_text = ""
-    page_texts = []
+    pages = convertfrombytes(pdfbytes, dpi=200)
+    alltext = ""
+    pagetexts = []
     progress = st.progress(0)
 
     for i, page in enumerate(pages, 1):
-        text = pytesseract.image_to_string(page)
+        text = pytesseract.imagetostring(page)
         text = re.sub(r"\s+", " ", text)
-        page_texts.append(text)
-        all_text += f"\n{text}"
+        pagetexts.append(text)
+        alltext += f"\n{text}"
         progress.progress(i / len(pages))
 
     progress.empty()
-    return all_text.strip(), page_texts
+    return alltext.strip(), pagetexts
 
-
-def extract_project_address(full_text: str) -> str:
-    """Detect project address if possible (fallback provided)."""
+def extractprojectaddress(fulltext: str) -> str:
     fallback = "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    patterns = [
-        r"PROJECT\s*ADDRESS[:\s]*(.*?QLD\s*\d{4})",
-        r"LOCATION[:\s]*(.*?QLD\s*\d{4})",
-        r"(145\s*BUSS\s*STREET\s*.*?BURNETT\s*HEADS.*?QLD\s*\d{4})"
+    patterns = 
+        r"PROJECT\sADDRESS[:\s",
+        r"LOCATION:\s",
+        r"(145\sBUSS\sSTREET\s.?BURNETT\sHEADS.?QLD\s\d{4})"
     ]
     for p in patterns:
-        m = re.search(p, full_text, re.I)
+        m = re.search(p, fulltext, re.I)
         if m:
             return m.group(1).strip()
     return fallback
 
-
-def safe_float(pattern: str, text: str, default=0.0) -> float:
-    """Safe float extraction."""
+def safefloat(pattern: str, text: str, default=0.0) -> float:
     m = re.search(pattern, text, re.I)
     return float(m.group(1)) if m else default
 
-
-# ------------------- MAIN APP WORKFLOW -------------------
-
-if uploaded_file:
+if uploadedfile:
     try:
-        pdf_bytes = uploaded_file.read()
-        full_text, page_texts = extract_text_ocr(pdf_bytes)
+        pdfbytes = uploadedfile.read()
+        fulltext, pagetexts = extracttextocr(pdfbytes)
         st.success("✅ OCR extraction complete")
 
-        # Debug viewer for raw OCR text
         with st.expander("🔍 View OCR Text (per page)"):
-            for i, page_text in enumerate(page_texts, 1):
-                st.markdown(f"**Page {i}:**")
-                st.text_area(f"OCR Output Page {i}", page_text, height=200)
+            for i, pagetext in enumerate(pagetexts, 1):
+                st.markdown(f"Page {i}:")
+                st.textarea(f"OCR Output Page {i}", pagetext, height=200)
 
-        # Detect address automatically
-        detected_address = extract_project_address(full_text)
-        project_address = st.text_input("📍 Project Address (edit if incorrect)", detected_address)
+        detectedaddress = extractprojectaddress(fulltext)
+        projectaddress = st.textinput("📍 Project Address (edit if incorrect)", detectedaddress)
 
-        # ------------------- PARAMETER EXTRACTION -------------------
         params = {}
-        params["Vessel Length"] = f"{safe_float(r'LENGTH[:\\s]*([0-9]+(?:\\.[0-9]+)?)\\s*m', full_text)} m"
-        params["Vessel Beam"] = f"{safe_float(r'BEAM[:\\s]*([0-9]+(?:\\.[0-9]+)?)\\s*m', full_text)} m"
-        params["Concrete Strength"] = f"{int(safe_float(r'CONCRETE\\s*(?:STRENGTH|GRADE)[:\\s]*([0-9]+)', full_text))} MPa"
-        rebar = re.search(r'REBAR\\s*GRADE[:\\s]*([A-Z0-9]+)', full_text, re.I)
+        params["Vessel Length"] = f"{safefloat(r'LENGTH:\\s?)\\sm', fulltext)} m"
+        params["Vessel Beam"] = f"{safefloat(r'BEAM:\\s?)\\sm', fulltext)} m"
+        params["Concrete Strength"] = f"{int(safefloat(r'CONCRETE\\s(?:STRENGTH|GRADE):\\s', fulltext))} MPa"
+        rebar = re.search(r'REBAR\\sGRADE:\\s', fulltext, re.I)
         params["Rebar Grade"] = rebar.group(1) if rebar else "500N"
-        params["Galvanizing"] = f"{int(safe_float(r'GALVANIZ(?:ED|ING)[^\\d]*([0-9]+)', full_text))} g/m²"
-        timber = re.search(r'(F\\d+)', full_text)
+        params["Galvanizing"] = f"{int(safefloat(r'GALVANIZ(?:ED|ING)^\\d', fulltext))} g/m²"
+        timber = re.search(r'(F\\d+)', fulltext)
         params["Timber Grade"] = timber.group(1) if timber else "F17"
-        params["Design Wave Height"] = f"{safe_float(r'WAVE\\s*HEIGHT[:\\s]*([0-9.]+)', full_text)} m"
-        params["Ultimate Wind Speed (V100)"] = f"{int(safe_float(r'WIND\\s*SPEED[:\\s]*([0-9]+)', full_text))} m/s"
-        params["Concrete Cover"] = f"{int(safe_float(r'COVER[:\\s]*([0-9]+)', full_text))} mm"
+        params["Design Wave Height"] = f"{safefloat(r'WAVE\\sHEIGHT:\\s', fulltext)} m"
+        params["Ultimate Wind Speed (V100)"] = f"{int(safefloat(r'WIND\\sSPEED:\\s', fulltext))} m/s"
+        params["Concrete Cover"] = f"{int(safefloat(r'COVER:\\s', fulltext))} mm"
         params["Deck Slope (Critical Max)"] = "1:12"
 
         st.subheader("📋 Extracted Parameters")
-        df_params = pd.DataFrame.from_dict(params, orient="index", columns=["Value"])
-        df_params.index.name = "Parameter"
-        st.table(df_params)
+        dfparams = pd.DataFrame.fromdict(params, orient="index", columns=["Value"])
+        dfparams.index.name = "Parameter"
+        st.table(dfparams)
 
-        # ------------------- COMPLIANCE CHECKS -------------------
         compliance = []
 
-        def add_check(desc, ref, status, notes):
+        def addcheck(desc, ref, status, notes):
             compliance.append({
                 "Check Description": desc,
                 "Standard Reference": ref,
@@ -116,29 +111,28 @@ if uploaded_file:
                 "Notes": notes
             })
 
-        if safe_float(r'CONCRETE.*?([3-9][0-9])', full_text) >= 40:
-            add_check("Concrete Strength", "AS 3600:2018 Cl 3.1", "Compliant", "≥40 MPa suitable for marine.")
+        if safefloat(r'CONCRETE.?([3-9][0-9])', fulltext) >= 40:
+            addcheck("Concrete Strength", "AS 3600:2018 Cl 3.1", "Compliant", "≥40 MPa suitable for marine.")
         else:
-            add_check("Concrete Strength", "AS 3600:2018 Cl 3.1", "Review", "<40 MPa found.")
+            addcheck("Concrete Strength", "AS 3600:2018 Cl 3.1", "Review", "<40 MPa found.")
 
-        if safe_float(r'WIND.*?([0-9]+)', full_text) >= 57:
-            add_check("Wind Load (V100)", "AS/NZS 1170.2", "Compliant", "≥57 m/s Region B requirement.")
+        if safefloat(r'WIND.?([0-9]+)', fulltext) >= 57:
+            addcheck("Wind Load (V100)", "AS/NZS 1170.2", "Compliant", "≥57 m/s Region B requirement.")
         else:
-            add_check("Wind Load (V100)", "AS/NZS 1170.2", "Review", "Below regional design wind speed.")
+            addcheck("Wind Load (V100)", "AS/NZS 1170.2", "Review", "Below regional design wind speed.")
 
-        add_check("Deck Slope", "AS 3962:2020 Cl 5.3", "Compliant", "1:12 slope within accessibility limits.")
-        add_check("Rebar Grade", "AS 3600", "Compliant", "500N steel within design limits.")
-        add_check("Timber Grade", "AS 1720.1", "Compliant", "F17 timber accepted for marine members.")
+        addcheck("Deck Slope", "AS 3962:2020 Cl 5.3", "Compliant", "1:12 slope within accessibility limits.")
+        addcheck("Rebar Grade", "AS 3600", "Compliant", "500N steel within design limits.")
+        addcheck("Timber Grade", "AS 1720.1", "Compliant", "F17 timber accepted for marine members.")
 
-        df_compliance = pd.DataFrame(compliance)
+        dfcompliance = pd.DataFrame(compliance)
         st.subheader("✅ Compliance Review")
-        st.table(df_compliance)
+        st.table(dfcompliance)
 
-        # ------------------- REPORT GENERATION -------------------
         st.sidebar.header("Report Footer Information")
-        engineer = st.sidebar.text_input("Engineer Name", "Matt Caughley")
-        company = st.sidebar.text_input("Company", "CBKM Engineering")
-        contact = st.sidebar.text_input("Contact", "Email/Phone")
+        engineer = st.sidebar.textinput("Engineer Name", "Matt Caughley")
+        company = st.sidebar.textinput("Company", "CBKM Engineering")
+        contact = st.sidebar.textinput("Contact", "Email/Phone")
 
         if st.button("📘 Generate PDF Report"):
             buf = BytesIO()
@@ -148,29 +142,27 @@ if uploaded_file:
 
             elements.append(Paragraph("CBKM Pontoon Evaluation Report", styles["Title"]))
             elements.append(Paragraph(datetime.now().strftime("%B %d, %Y"), styles["Normal"]))
-            elements.append(Paragraph(f"Project Address: {project_address}", styles["Normal"]))
+            elements.append(Paragraph(f"Project Address: {projectaddress}", styles["Normal"]))
             elements.append(Spacer(1, 12))
 
-            # Parameters Table
             pdata = [["Parameter", "Value"]] + [[k, v] for k, v in params.items()]
-            table_p = Table(pdata)
-            table_p.setStyle(TableStyle([
+            tablep = Table(pdata)
+            tablep.setStyle(TableStyle([
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke)
             ]))
-            elements.append(table_p)
+            elements.append(tablep)
             elements.append(Spacer(1, 12))
 
-            # Compliance Table
-            cdata = [df_compliance.columns.tolist()] + df_compliance.values.tolist()
-            table_c = Table(cdata)
-            table_c.setStyle(TableStyle([
+            cdata = [dfcompliance.columns.tolist()] + dfcompliance.values.tolist()
+            tablec = Table(cdata)
+            tablec.setStyle(TableStyle([
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke)
             ]))
-            elements.append(table_c)
+            elements.append(tablec)
             elements.append(Spacer(1, 12))
 
             elements.append(Paragraph(
@@ -184,12 +176,13 @@ if uploaded_file:
 
             doc.build(elements)
             buf.seek(0)
-            st.download_button(
+            st.downloadbutton(
                 "⬇️ Download Evaluation Report",
                 buf,
-                file_name="pontoon_evaluation_report.pdf",
+                filename="pontoonevaluation_report.pdf",
                 mime="application/pdf"
             )
 
     except Exception as e:
         st.error(f"An error occurred: {e}")
+``
