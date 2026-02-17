@@ -1,4 +1,4 @@
-# app.py - FIXED & COMPLETE: Added Generate Form 12 button + dynamic population from PDF data
+# app.py - RESTORED & FIXED: Project Risk section + Form 12 button, Arrow error fixed, no deprecation warning
 
 import streamlit as st
 from pypdf import PdfReader
@@ -20,7 +20,7 @@ st.set_page_config(page_title="CBKM Pontoon Evaluator", layout="wide")
 st.title("CBKM Pontoon Design Evaluator")
 st.markdown("Upload pontoon design PDF → extract parameters → auto-check compliance against Australian Standards")
 
-# Sidebar for editable footer (title page only) + Form 12 details
+# Sidebar for editable footer (title page only)
 with st.sidebar:
     st.header("PDF Report Footer (Title Page Only)")
     engineer_name = st.text_input("Engineer Name", "Matthew Caughley")
@@ -167,14 +167,31 @@ if uploaded_file is not None:
 
         df_checks = pd.DataFrame(table_data)
 
-        # Force Design Value to string (prevents Arrow error)
+        # FIX: Force Design Value to string (prevents Arrow error)
         df_checks["Design Value"] = df_checks["Design Value"].astype(str)
 
         st.subheader("Compliance Summary")
+        # FIX: applymap → map (removes deprecation warning)
         st.dataframe(
             df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]),
             width='stretch'
         )
+
+        # Count non-compliant items (moved here so variables are in scope for generate_pdf)
+        non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
+        non_compliant_count = len(non_compliant)
+        review_count = len([r for r in table_data if r["Status"] == "Review"])
+        conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
+        risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
+
+        summary_text = f"""
+         This pontoon design has been reviewed against the relevant Australian Standards, state legislation, and LGA convenants.
+            Overall project risk level: **{risk_level}**.
+            - Total items checked: {len(table_data)}
+            - Compliant: {len(table_data) - non_compliant_count}
+            - Conditional: {conditional_count}
+            - Review items: {review_count}
+           """
 
         # PDF generation function
         def generate_pdf():
@@ -273,7 +290,7 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Non-Compliant Items Risk + Project Risk (last page)
+            # Non-Compliant Items Risk
             non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
             if non_compliant:
                 elements.append(Paragraph("Non-Compliant Items Risk", styles['Heading2']))
@@ -302,6 +319,12 @@ if uploaded_file is not None:
             elements.append(Paragraph("Project Risk", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
 
+            # Add your summary_text exactly as provided
+            for line in summary_text.split('\n'):
+                if line.strip():
+                    elements.append(Paragraph(line, styles['Normal']))
+                    elements.append(Spacer(1, 6*mm))
+
             # 10 lines of free space
             for _ in range(10):
                 elements.append(Spacer(1, 12*mm))
@@ -309,6 +332,14 @@ if uploaded_file is not None:
             doc.build(elements)
             buffer.seek(0)
             return buffer
+
+        pdf_buffer = generate_pdf()
+        st.download_button(
+            label="Download Compliance Report",
+            data=pdf_buffer,
+            file_name="pontoon_compliance_report.pdf",
+            mime="application/pdf"
+        )
 
         # Form 12 generation (dynamic from PDF data)
         def generate_form12():
