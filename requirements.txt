@@ -1,9 +1,16 @@
+# Streamlit app framework
 streamlit==1.35.0
-pypdf==4.2.0
+
+# PDF and OCR processing
 pdf2image==1.17.0
 pytesseract==0.3.13
+pypdf==4.2.0
 Pillow==10.3.0
+
+# Data handling
 pandas==2.2.2
+numpy==1.26.4
+
+# Report generation
 reportlab==4.1.0
 python-dateutil==2.9.0.post0
-numpy==1.26.4
