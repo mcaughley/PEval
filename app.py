@@ -1,4 +1,4 @@
-# app.py - FULL WORKING VERSION: All parameters restored + OCR + debug text + Form 12 button + Project Risk Assessment
+# app.py - FIXED: Aggressive OCR for new plans + Form 12 button + Project Risk Assessment restored
 
 import streamlit as st
 from pypdf import PdfReader
@@ -37,11 +37,14 @@ def extract_text_with_ocr(reader):
     full_text = ""
     for page in reader.pages:
         text = page.extract_text() or ""
-        if not text.strip():
+        if not text.strip():  # Aggressive OCR fallback
             for img in page.images:
                 try:
                     pil_img = PILImage.open(BytesIO(img.data))
+                    # Try PSM 6 first (block of text), then PSM 3 (auto)
                     ocr = pytesseract.image_to_string(pil_img, config='--psm 6')
+                    if not ocr.strip():
+                        ocr = pytesseract.image_to_string(pil_img, config='--psm 3')
                     text += ocr + "\n"
                 except:
                     pass
@@ -52,8 +55,10 @@ def extract_project_address(text):
     fallback = ""
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
-    if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL) or re.search(r"19\s*RAKUMBA\s*PLACE.*MOUNTAIN\s*CREEK", text, re.I | re.DOTALL):
-        return "19 Rakumba Place, Mountain Creek" if "RAKUMBA" in text.upper() else "145 Buss Street, Burnett Heads, QLD 4670, Australia"
+    if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
+        return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
+    if re.search(r"19\s*RAKUMBA\s*PLACE.*MOUNTAIN\s*CREEK", text, re.I | re.DOTALL):
+        return "19 Rakumba Place, Mountain Creek"
     return fallback
 
 if uploaded_file is not None:
@@ -63,37 +68,37 @@ if uploaded_file is not None:
 
         st.success(f"PDF processed ({len(reader.pages)} pages) - OCR used")
 
-        # DEBUG: Show raw OCR text so we can tune regex
+        # Debug: show raw OCR text so we can see what's being read
         st.text_area("Raw OCR Text (first 4000 chars) - for debugging", full_text[:4000], height=300)
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # ALL ORIGINAL PARAMETER EXTRACTION (restored)
+        # Parameter extraction (full list restored + flexible regex for OCR noise)
         params = {}
 
-        if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa.*?POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
+        if m := re.search(r"LIVE LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
-            params['live_load_point'] = float(m.group(2))
+        if m := re.search(r"POINT LOAD.*?(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
+            params['live_load_point'] = float(m.group(1))
 
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
 
-        if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"WAVE\s*HEIGHT.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
 
-        if m := re.search(r"VELOCITY.*?<\s*(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"VELOCITY.*?(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
 
-        if m := re.search(r"DEBRIS LOADS.*?(\d+\.\d+)\s*m.*?(\d+\.\d+)\s*TONNE", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DEBRIS.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
-            params['debris_log_mass'] = float(m.group(2))
 
-        if m := re.search(r"LENGTH\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
-        if m := re.search(r"BEAM\s*=\s*(\d+\.\d+)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
-        if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MASS\s*=\s*(\d+[,]? \d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
 
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
@@ -104,7 +109,7 @@ if uploaded_file is not None:
         if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
 
-        if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
@@ -138,7 +143,7 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – try a different PDF or check OCR.")
 
-        # Compliance checks (full list restored)
+        # Compliance checks (full list)
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -177,7 +182,10 @@ if uploaded_file is not None:
         df_checks["Design Value"] = df_checks["Design Value"].astype(str)
 
         st.subheader("Compliance Summary")
-        st.dataframe(df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
+        st.dataframe(
+            df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]),
+            width='stretch'
+        )
 
         # Count for Project Risk Assessment
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
@@ -231,7 +239,17 @@ if uploaded_file is not None:
                 ["Contact:", company_contact]
             ]
             footer_table = Table(footer_data, colWidths=[50*mm, 130*mm])
-            footer_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.black), ('ALIGN', (0,0), (0,-1), 'RIGHT'), ('ALIGN', (1,0), (1,-1), 'LEFT'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('FONTSIZE', (0,0), (-1,-1), 9), ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,0), (0,-1), colors.lightgrey), ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue), ('BOX', (0,0), (-1,-1), 1, colors.black)]))
+            footer_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.black),
+                ('ALIGN', (0,0), (0,-1), 'RIGHT'),
+                ('ALIGN', (1,0), (1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTSIZE', (0,0), (-1,-1), 9),
+                ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+                ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+                ('TEXTCOLOR', (0,0), (0,-1), colors.darkblue),
+                ('BOX', (0,0), (-1,-1), 1, colors.black),
+            ]))
             elements.append(Spacer(1, 40*mm))
             elements.append(footer_table)
 
@@ -243,7 +261,12 @@ if uploaded_file is not None:
             for k, v in params.items():
                 p_data.append([Paragraph(str(k), styles['Normal']), Paragraph(str(v), styles['Normal'])])
             p_table = Table(p_data, colWidths=[90*mm, 90*mm])
-            p_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.darkblue), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('VALIGN', (0,0), (-1,-1), 'TOP')]))
+            p_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ]))
             elements.append(p_table)
             elements.append(PageBreak())
 
@@ -251,9 +274,22 @@ if uploaded_file is not None:
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status"]]
             for row in table_data:
-                c_data.append([Paragraph(row['Check'], styles['Normal']), Paragraph(row['Required'], styles['Normal']), Paragraph(str(row['Design Value']), styles['Normal']), Paragraph(row['Status'], styles['Normal'])])
+                c_data.append([
+                    Paragraph(row['Check'], styles['Normal']),
+                    Paragraph(row['Required'], styles['Normal']),
+                    Paragraph(str(row['Design Value']), styles['Normal']),
+                    Paragraph(row['Status'], styles['Normal'])
+                ])
             c_table = Table(c_data, colWidths=[60*mm, 50*mm, 40*mm, 30*mm], repeatRows=1)
-            c_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.darkblue), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('ALIGN', (0,0), (-1,0), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('FONTSIZE', (0,1), (-1,-1), 9), ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey)]))
+            c_table.setStyle(TableStyle([
+                ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('FONTSIZE', (0,1), (-1,-1), 9),
+                ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
+            ]))
             elements.append(c_table)
             elements.append(PageBreak())
 
@@ -264,9 +300,22 @@ if uploaded_file is not None:
             if non_compliant:
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
                 for row in non_compliant:
-                    nc_data.append([Paragraph(row['Check'], styles['Normal']), Paragraph(row['Required'], styles['Normal']), Paragraph(str(row['Design Value']), styles['Normal']), Paragraph(row['Status'], styles['Normal'])])
+                    nc_data.append([
+                        Paragraph(row['Check'], styles['Normal']),
+                        Paragraph(row['Required'], styles['Normal']),
+                        Paragraph(str(row['Design Value']), styles['Normal']),
+                        Paragraph(row['Status'], styles['Normal'])
+                    ])
                 nc_table = Table(nc_data, colWidths=[60*mm, 50*mm, 40*mm, 30*mm])
-                nc_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.red), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('ALIGN', (0,0), (-1,0), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('FONTSIZE', (0,1), (-1,-1), 9), ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey)]))
+                nc_table.setStyle(TableStyle([
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+                    ('BACKGROUND', (0,0), (-1,0), colors.red),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('ALIGN', (0,0), (-1,0), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                    ('FONTSIZE', (0,1), (-1,-1), 9),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey),
+                ]))
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))
 
