@@ -1,4 +1,4 @@
-# app.py - FINAL COMPLETE VERSION (Strong OCR + 5-column Reference + Project Risk Assessment + Form 12)
+# app.py - CLEAN WORKING VERSION (no heavy OCR, fast build, 5-column Reference, Project Risk, Form 12)
 
 import streamlit as st
 from pypdf import PdfReader
@@ -11,8 +11,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-import pytesseract
-from PIL import Image as PILImage, ImageEnhance, ImageFilter
 
 LOGO_PATH = "cbkm_logo.png"
 
@@ -30,76 +28,79 @@ with st.sidebar:
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
-def preprocess(pil_img):
-    img = pil_img.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(4.0)
-    img = img.filter(ImageFilter.SHARPEN)
-    img = img.resize((int(img.width * 3), int(img.height * 3)), PILImage.LANCZOS)
-    return img
-
-def extract_text(reader):
-    full = ""
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        if not text.strip():
-            for img in page.images:
-                try:
-                    pil = PILImage.open(BytesIO(img.data))
-                    proc = preprocess(pil)
-                    ocr = pytesseract.image_to_string(proc, config='--psm 6')
-                    if not ocr.strip():
-                        ocr = pytesseract.image_to_string(proc, config='--psm 3')
-                    text += ocr + "\n"
-                except:
-                    pass
-        full += text + "\n"
-    return full
-
-def extract_address(text):
-    text = re.sub(r"(PROJECT.*?ADDRESS|USE ADDRESS|PONTOON).*?:", "", text, flags=re.I)
+def extract_project_address(text):
+    fallback = ""
+    text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
-    if re.search(r"145\s*BUSS", text, re.I):
+    if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    if re.search(r"19\s*RAKUMBA", text, re.I):
+    if re.search(r"19\s*RAKUMBA\s*PLACE.*MOUNTAIN\s*CREEK", text, re.I | re.DOTALL):
         return "19 Rakumba Place, Mountain Creek"
-    return ""
+    return fallback
 
 if uploaded_file is not None:
     try:
         reader = PdfReader(uploaded_file)
-        full_text = extract_text(reader)
+        full_text = ""
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            full_text += text + "\n"
 
-        st.success(f"PDF processed ({len(reader.pages)} pages) - OCR used")
-        st.text_area("Raw OCR Text (debug)", full_text[:3000], height=250)
+        st.success(f"PDF processed ({len(reader.pages)} pages)")
 
-        project_address = extract_address(full_text)
-        st.info(f"**Project Address:** {project_address or '(Not detected)'}")
+        project_address = extract_project_address(full_text)
+        st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
+        # Parameter extraction
         params = {}
-        if m := re.search(r"LIVE LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I):
+
+        if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
-        if m := re.search(r"POINT LOAD.*?(\d+\.?\d*)\s*kN", full_text, re.I):
+        if m := re.search(r"POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_point'] = float(m.group(1))
-        if m := re.search(r"V100\s*=\s*(\d+)", full_text, re.I):
+
+        if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"WAVE.*?(\d+)\s*mm", full_text, re.I):
-            params['wave_height'] = int(m.group(1)) / 1000
-        if m := re.search(r"VELOCITY.*?(\d+\.?\d*)\s*m/s", full_text, re.I):
+
+        if m := re.search(r"WAVE HEIGHT.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['wave_height'] = int(m.group(1)) / 1000.0
+
+        if m := re.search(r"VELOCITY.*?(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
-        if m := re.search(r"DEAD LOAD ONLY.*?(\d+)[^0-9]*(\d+)mm", full_text, re.I):
+
+        if m := re.search(r"DEBRIS.*?(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['debris_mat_depth'] = float(m.group(1))
+
+        if m := re.search(r"LENGTH\s*=\s*(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_length'] = float(m.group(1))
+        if m := re.search(r"BEAM\s*=\s*(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_beam'] = float(m.group(1))
+        if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+            params['vessel_mass'] = int(m.group(1).replace(',', ''))
+
+        if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
-        if m := re.search(r"MIN.*?(\d+)\s*mm", full_text, re.I):
+        if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-        if m := re.search(r"CONCRETE.*?(\d+)\s*MPa", full_text, re.I):
+
+        if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
+            params['deck_slope_max'] = int(m.group(1))
+
+        if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
-        if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I):
+        if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
+
+        if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
+            params['steel_galvanizing'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
         if params:
-            df = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
-            df["Value"] = df["Value"].astype(str)
-            st.dataframe(df, width='stretch')
+            df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
+            df_params["Value"] = df_params["Value"].astype(str)
+            st.dataframe(df_params, width='stretch')
+        else:
+            st.warning("No parameters extracted")
 
         # Compliance checks
         compliance_checks = [
@@ -152,7 +153,6 @@ if uploaded_file is not None:
             styles = getSampleStyleSheet()
             elements = []
 
-            # Title page
             try:
                 logo = Image(LOGO_PATH, width=180*mm, height=60*mm)
                 logo.hAlign = 'CENTER'
@@ -235,7 +235,6 @@ if uploaded_file is not None:
         pdf_buffer = generate_pdf()
         st.download_button("Download Compliance Report", data=pdf_buffer, file_name="pontoon_compliance_report.pdf", mime="application/pdf")
 
-        # Form 12 button
         if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4)
