@@ -1,4 +1,4 @@
-# app.py - FIXED: Safe lambdas + OCR fallback + debug box + generate_form12 defined + flexible regex + 5-column Reference in PDF + Project Risk Assessment
+# app.py - UPDATED: Improved regex for better extraction + OCR + 5-column Reference + Project Risk + Form 12
 
 import streamlit as st
 from pypdf import PdfReader
@@ -72,13 +72,13 @@ if uploaded_file is not None:
 
         st.success(f"PDF processed ({len(reader.pages)} pages) - OCR used where needed")
 
-        # Raw Text Debug box
-        st.text_area("Raw Text Debug (first 4000 chars)", full_text[:4000], height=300)
+        # Debug OCR box
+        st.text_area("Raw OCR Text (first 4000 chars) - for debugging", full_text[:4000], height=300)
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # Parameter extraction (more flexible regex for OCR noise, e.g. extra spaces or misspellings)
+        # Parameter extraction (updated regex for better matching, e.g., more flexible spacing, misspellings from OCR)
         params = {}
 
         if m := re.search(r"LIVE\s*LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
@@ -104,6 +104,12 @@ if uploaded_file is not None:
             params['vessel_beam'] = float(m.group(1))
         if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
+        if m := re.search(r"VESSEL\s*LENGTH\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_length'] = float(m.group(1))
+        if m := re.search(r"VESSEL\s*BEAM\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['vessel_beam'] = float(m.group(1))
+        if m := re.search(r"VESSEL\s*MASS\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+            params['vessel_mass'] = int(m.group(1).replace(',', ''))
 
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
@@ -112,8 +118,10 @@ if uploaded_file is not None:
 
         if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
+        if m := re.search(r"DECK\s*SLOPE\s*1\s*:\s*(\d+)", full_text, re.I | re.DOTALL):
+            params['deck_slope_max'] = int(m.group(1))
 
-        if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
@@ -128,7 +136,7 @@ if uploaded_file is not None:
             params['timber_grade'] = m.group(1)
 
         if m := re.search(r"FIXINGS TO BE\s*(\d+)\s*GRADE", full_text, re.I | re.DOTALL):
-            params['fixings_grade'] = m.group(1)
+            params['fixings_grade'] = m.group(1))
 
         if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
@@ -147,7 +155,7 @@ if uploaded_file is not None:
         else:
             st.warning("No parameters extracted – check debug text above.")
 
-        # Full compliance checks
+        # Compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -190,6 +198,8 @@ if uploaded_file is not None:
 
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
+        review_count = len([r for r in table_data if r["Status"] == "Review"])
+        conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
         risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
 
         summary_text = f"""
@@ -197,8 +207,8 @@ if uploaded_file is not None:
             Overall project risk level: **{risk_level}**.
             - Total items checked: {len(table_data)}
             - Compliant: {len(table_data) - non_compliant_count}
-            - Conditional: {len([r for r in table_data if r["Status"] == "Conditional"])}
-            - Review items: {len([r for r in table_data if r["Status"] == "Review"])}
+            - Conditional: {conditional_count}
+            - Review items: {review_count}
            """
 
         def generate_pdf():
@@ -286,7 +296,6 @@ if uploaded_file is not None:
         pdf_buffer = generate_pdf()
         st.download_button("Download Compliance Report", data=pdf_buffer, file_name="pontoon_compliance_report.pdf", mime="application/pdf")
 
-        # Form 12 button
         if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4)
