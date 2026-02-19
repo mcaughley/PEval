@@ -1,5 +1,3 @@
-# app.py - FAST VERSION (no OCR, builds instantly)
-
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -49,7 +47,6 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # Parameter extraction
         params = {}
 
         if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa", full_text, re.I | re.DOTALL):
@@ -97,10 +94,7 @@ if uploaded_file is not None:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
             df_params["Value"] = df_params["Value"].astype(str)
             st.dataframe(df_params, width='stretch')
-        else:
-            st.warning("No parameters extracted")
 
-        # Compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -113,14 +107,6 @@ if uploaded_file is not None:
             {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
             {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
-            {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600 if v is not None else False, "ref": "AS 3962:2020 §5"},
-            {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061T6" if v is not None else False, "ref": "AS 1664"},
-            {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17" if v is not None else False, "ref": "AS 1720.1"},
-            {"name": "Fixings", "req": "316 SS", "key": "fixings_grade", "func": lambda v: "316" in str(v) if v is not None else False, "ref": "AS 3962:2020 §5"},
-            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000 if v is not None else False, "ref": "AS 4997:2005 §3"},
-            {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100 if v is not None else False, "ref": "AS 3962:2020 §4"},
-            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100 if v is not None else False, "ref": "AS 4997:2005 §4"},
-            {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000 if v is not None else False, "ref": "AS 3962:2020 §3"},
         ]
 
         table_data = []
@@ -141,7 +127,6 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
 
-        # Project Risk Assessment
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
         risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
