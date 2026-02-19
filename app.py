@@ -1,4 +1,4 @@
-# app.py - FINAL FIXED VERSION (Safe lambdas + OCR + 5-column Reference + Project Risk + Form 12)
+# app.py - FAST VERSION (no OCR, builds instantly)
 
 import streamlit as st
 from pypdf import PdfReader
@@ -11,8 +11,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-import pytesseract
-from PIL import Image as PILImage, ImageEnhance, ImageFilter
 
 LOGO_PATH = "cbkm_logo.png"
 
@@ -30,81 +28,67 @@ with st.sidebar:
 
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
-def preprocess_image(pil_img):
-    img = pil_img.convert("L")
-    img = ImageEnhance.Contrast(img).enhance(3.5)
-    img = img.filter(ImageFilter.SHARPEN)
-    img = img.resize((int(img.width * 2.8), int(img.height * 2.8)), PILImage.LANCZOS)
-    return img
-
-def extract_text_with_ocr(reader):
-    full_text = ""
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        if not text.strip():
-            for img in page.images:
-                try:
-                    pil_img = PILImage.open(BytesIO(img.data))
-                    processed = preprocess_image(pil_img)
-                    ocr = pytesseract.image_to_string(processed, config='--psm 6')
-                    if not ocr.strip():
-                        ocr = pytesseract.image_to_string(processed, config='--psm 3')
-                    text += ocr + "\n"
-                except:
-                    pass
-        full_text += text + "\n"
-    return full_text
-
 def extract_project_address(text):
     fallback = ""
     text = re.sub(r"(PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*)", "", text, flags=re.I)
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
-    if re.search(r"19\s*RAKUMBA\s*PLACE.*MOUNTAIN\s*CREEK", text, re.I | re.DOTALL):
-        return "19 Rakumba Place, Mountain Creek"
     return fallback
 
 if uploaded_file is not None:
     try:
         reader = PdfReader(uploaded_file)
-        full_text = extract_text_with_ocr(reader)
+        full_text = ""
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            full_text += text + "\n"
 
-        st.success(f"PDF processed ({len(reader.pages)} pages) - OCR used")
-        st.text_area("Raw OCR Text (debug)", full_text[:4000], height=300)
+        st.success(f"PDF processed ({len(reader.pages)} pages)")
 
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
+        # Parameter extraction
         params = {}
-        if m := re.search(r"LIVE LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
+
+        if m := re.search(r"LIVE LOAD.*?(\d+\.\d+)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
-        if m := re.search(r"POINT LOAD.*?(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
+        if m := re.search(r"POINT LOAD.*?(\d+\.\d+)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_point'] = float(m.group(1))
+
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
+
         if m := re.search(r"WAVE HEIGHT.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
-        if m := re.search(r"VELOCITY.*?(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
+
+        if m := re.search(r"VELOCITY.*?(\d+\.\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
-        if m := re.search(r"DEBRIS.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+
+        if m := re.search(r"DEBRIS.*?(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
-        if m := re.search(r"LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+
+        if m := re.search(r"LENGTH\s*=\s*(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
-        if m := re.search(r"BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"BEAM\s*=\s*(\d+\.\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
         if m := re.search(r"MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
+
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
+
         if m := re.search(r"DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
+
         if m := re.search(r"PONTOON CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
+
         if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
 
@@ -113,7 +97,10 @@ if uploaded_file is not None:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
             df_params["Value"] = df_params["Value"].astype(str)
             st.dataframe(df_params, width='stretch')
+        else:
+            st.warning("No parameters extracted")
 
+        # Compliance checks
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -154,6 +141,7 @@ if uploaded_file is not None:
         st.subheader("Compliance Summary")
         st.dataframe(df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
 
+        # Project Risk Assessment
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
         risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
