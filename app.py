@@ -1,4 +1,4 @@
-# app.py - ALL ERRORS FIXED (Safe lambdas + variables in correct order + Form 12 + OCR + 5-column Reference)
+# app.py - FINAL FIXED VERSION (Safe lambdas + OCR + 5-column Reference + Project Risk + Form 12)
 
 import streamlit as st
 from pypdf import PdfReader
@@ -61,6 +61,8 @@ def extract_project_address(text):
     text = re.sub(r"\s+", " ", text).strip()
     if re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
         return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
+    if re.search(r"19\s*RAKUMBA\s*PLACE.*MOUNTAIN\s*CREEK", text, re.I | re.DOTALL):
+        return "19 Rakumba Place, Mountain Creek"
     return fallback
 
 if uploaded_file is not None:
@@ -74,7 +76,6 @@ if uploaded_file is not None:
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
-        # Parameter extraction
         params = {}
         if m := re.search(r"LIVE LOAD.*?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
@@ -113,7 +114,6 @@ if uploaded_file is not None:
             df_params["Value"] = df_params["Value"].astype(str)
             st.dataframe(df_params, width='stretch')
 
-        # Compliance checks - all safe for None
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
             {"name": "Live load point", "req": "≥ 4.5 kN", "key": "live_load_point", "func": lambda v: v >= 4.5 if v is not None else False, "ref": "AS 3962:2020 §4"},
@@ -152,16 +152,10 @@ if uploaded_file is not None:
         df_checks["Design Value"] = df_checks["Design Value"].astype(str)
 
         st.subheader("Compliance Summary")
-        st.dataframe(
-            df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]),
-            width='stretch'
-        )
+        st.dataframe(df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
 
-        # All variables defined BEFORE generate_pdf
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
-        review_count = len([r for r in table_data if r["Status"] == "Review"])
-        conditional_count = len([r for r in table_data if r["Status"] == "Conditional"])
         risk_level = "Low" if non_compliant_count <= 5 else ("Medium" if non_compliant_count <= 9 else "High")
 
         summary_text = f"""
@@ -169,8 +163,8 @@ if uploaded_file is not None:
             Overall project risk level: **{risk_level}**.
             - Total items checked: {len(table_data)}
             - Compliant: {len(table_data) - non_compliant_count}
-            - Conditional: {conditional_count}
-            - Review items: {review_count}
+            - Conditional: {len([r for r in table_data if r["Status"] == "Conditional"])}
+            - Review items: {len([r for r in table_data if r["Status"] == "Review"])}
            """
 
         def generate_pdf():
@@ -213,7 +207,6 @@ if uploaded_file is not None:
 
             elements.append(PageBreak())
 
-            # Parameters table
             elements.append(Paragraph("Extracted Parameters from Drawings", styles['Heading2']))
             p_data = [["Parameter", "Value"]]
             for k, v in params.items():
@@ -223,7 +216,6 @@ if uploaded_file is not None:
             elements.append(p_table)
             elements.append(PageBreak())
 
-            # Compliance Summary with 5th column
             elements.append(Paragraph("Compliance Summary (Standards-Based)", styles['Heading2']))
             c_data = [["Check", "Required", "Design Value", "Status", "Reference"]]
             for row in table_data:
@@ -233,7 +225,6 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            # Project Risk Assessment
             elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
 
@@ -261,7 +252,6 @@ if uploaded_file is not None:
         pdf_buffer = generate_pdf()
         st.download_button("Download Compliance Report", data=pdf_buffer, file_name="pontoon_compliance_report.pdf", mime="application/pdf")
 
-        # Form 12 button
         if st.button("Generate Form 12 (Aspect Inspection Certificate)"):
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4)
