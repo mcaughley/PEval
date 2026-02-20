@@ -151,7 +151,7 @@ if uploaded_file is not None:
             elements.append(Paragraph("CBKM Pontoon Compliance Report", title_style))
             elements.append(Spacer(1, 20*mm))
             elements.append(Paragraph("Commercial Use Pontoon (GCM-2136)", styles['Heading2']))
-            elements.append(Spacer(1, 8*mm))
+            elements.append(Spacer(1, 8*mm)
             elements.append(Paragraph(project_address if project_address else "Not detected", styles['Heading3']))
             elements.append(Spacer(1, 8*mm))
             elements.append(Paragraph(datetime.now().strftime('%Y-%m-%d %H:%M AEST'), styles['Heading3']))
