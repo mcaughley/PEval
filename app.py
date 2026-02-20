@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -236,3 +237,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+```
