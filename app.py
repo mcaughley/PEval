@@ -83,7 +83,7 @@ if uploaded_file is not None:
         if params:
             df_params = pd.DataFrame(list(params.items()), columns=["Parameter", "Value"])
             df_params["Value"] = df_params["Value"].astype(str)
-            st.dataframe(df_params, width='stretch')
+            st.dataframe(df_params, use_container_width=True)
 
         compliance_checks = [
             {"name": "Live load uniform", "req": "≥ 3.0 kPa", "key": "live_load_uniform", "func": lambda v: v >= 3.0 if v is not None else False, "ref": "AS 3962:2020 §2 & 4"},
@@ -115,7 +115,7 @@ if uploaded_file is not None:
         df_checks["Design Value"] = df_checks["Design Value"].astype(str)
 
         st.subheader("Compliance Summary")
-        st.dataframe(df_checks.style.map(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), width='stretch')
+        st.dataframe(df_checks.style.applymap(lambda x: "color: green" if x == "Compliant" else "color: orange" if x == "Conditional" else "color: red" if x == "Review" else "", subset=["Status"]), use_container_width=True)
 
         non_compliant = [row for row in table_data if row["Status"] in ["Review", "Conditional"]]
         non_compliant_count = len(non_compliant)
