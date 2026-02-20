@@ -68,7 +68,7 @@ if uploaded_file is not None:
         if m := re.search(r"vessel\s*mass\s*[:=]?\s*(\d{1,3}(?:,\d{3})*)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
         if m := re.search(r"(dead\s*load\s*(only)?|freeboard\s*under\s*dead\s*load)\s*[:=]?\s*(\d+)-(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['freeboard_dead'] = (int(m.group(4)) + int(m.group(5))) / 2
+            params['freeboard_dead'] = (int(m.group(3)) + int(m.group(4))) / 2
         if m := re.search(r"min(imum)?\s*(freeboard|critical\s*freeboard)?\s*[:=]?\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(3))
         if m := re.search(r"(deck|gangway|max(imum)?)\s*slope\s*[:=]?\s*1:(\d+)", full_text, re.I | re.DOTALL):
