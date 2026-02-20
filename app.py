@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -97,7 +98,7 @@ if uploaded_file is not None:
             {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
             {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
-            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
+            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: ("Compliant" if v >= 65 else "Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
         ]
 
         table_data = []
@@ -236,3 +237,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+```
