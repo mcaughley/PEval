@@ -52,15 +52,15 @@ if uploaded_file is not None:
             params['live_load_point'] = float(m.group(1))
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
-        if m := re.search(r"STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
         if m := re.search(r"DEBRIS LOADS\s*=\s*(\d+\.?\d*)\s*m\s*DEEP", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
         if m := re.search(r"(\d+\.?\d*)\s*TONNE LOG IMPACT", full_text, re.I | re.DOTALL):
             params['debris_log_mass'] = float(m.group(1))
-        if m := re.search(r"VESSEL LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN WET BERTH VESSEL LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
         if m := re.search(r"VESSEL BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
@@ -68,13 +68,13 @@ if uploaded_file is not None:
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
-        if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL FLOTATION/STABILITY CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-        if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)\s*deg", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
         if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
-        if m := re.search(r"MINIMUM COVER\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM COVER TO THE REINFORCEMENT\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
         if m := re.search(r"COATING MASS NOT LESS THAN\s*(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
