@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -50,9 +51,9 @@ if uploaded_file is not None:
             params['live_load_uniform'] = float(m.group(1))
         if m := re.search(r"POINT LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_point'] = float(m.group(1))
-        if m := re.search(r"ULTIMATE WIND SPEED\s*V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
         if m := re.search(r"STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
@@ -72,7 +73,7 @@ if uploaded_file is not None:
             params['freeboard_critical'] = int(m.group(1))
         if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
-        if m := re.search(r"CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
         if m := re.search(r"MINIMUM COVER TO THE REINFORCEMENT\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
@@ -121,16 +122,16 @@ if uploaded_file is not None:
             {"name": "Vessel mass", "req": "≤ 25,000 kg", "key": "vessel_mass", "func": lambda v: v <= 25000 if v is not None else False, "ref": "AS 3962:2020 §2"},
             {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
-            {"name": "Max deck slope", "req": "≤ 1:14 (4°)", "key": "deck_slope_max", "func": lambda v: v >= 14 if v is not None else False, "ref": "AS 3962:2020 §3"},  # Slope 1:v, higher v = shallower
+            {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
             {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
             {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600 if v is not None else False, "ref": "AS 1650"},
             {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061 T6" if v is not None else False, "ref": "AS 1664"},
             {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17" if v is not None else False, "ref": "AS 1720.1"},
             {"name": "Fixings grade", "req": "316 SS", "key": "fixings_grade", "func": lambda v: v == "316" if v is not None else False, "ref": "General"},
-            {"name": "Max scour allowance", "req": "≤ 500 mm", "key": "scour_allowance", "func": lambda v: v <= 500 if v is not None else False, "ref": "Design Note 4"},
+            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000 if v is not None else False, "ref": "Design Note 4"},
             {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100 if v is not None else False, "ref": "Design Note 5"},
-            {"name": "Soil cohesion", "req": "≥ 125 kPa", "key": "soil_cohesion", "func": lambda v: v >= 125 if v is not None else False, "ref": "Design Note k2"},
+            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100 if v is not None else False, "ref": "Design Note k2"},
             {"name": "Soil density", "req": "1.6 t/m³", "key": "soil_density", "func": lambda v: v == 1.6 if v is not None else False, "ref": "Design Note j1"},
             {"name": "Soil friction angle", "req": "≥ 36°", "key": "soil_friction", "func": lambda v: v >= 36 if v is not None else False, "ref": "Design Note j3"},
             {"name": "Soil bearing", "req": "≥ 100 kPa", "key": "soil_bearing", "func": lambda v: v >= 100 if v is not None else False, "ref": "Design Note j4"},
@@ -226,9 +227,7 @@ if uploaded_file is not None:
             elements.append(c_table)
             elements.append(PageBreak())
 
-            elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
-            elements.append(Spacer(1, 12*mm))
-
+            elements.append(Paragraph("Non-Compliant Items", styles['Heading2']))
             if non_compliant:
                 nc_data = [["Check", "Required", "Design Value", "Status"]]
                 for row in non_compliant:
@@ -237,6 +236,9 @@ if uploaded_file is not None:
                 nc_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.red), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('ALIGN', (0,0), (-1,0), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('FONTSIZE', (0,1), (-1,-1), 9), ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey)]))
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))
+
+            elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
+            elements.append(Spacer(1, 12*mm))
 
             for line in summary_text.split('\n'):
                 if line.strip():
@@ -273,3 +275,4 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
+```
