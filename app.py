@@ -9,8 +9,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
-from PIL import Image as PilImage
-import pytesseract
 
 LOGO_PATH = "cbkm_logo.png"
 
@@ -39,11 +37,6 @@ if uploaded_file is not None:
         full_text = ""
         for page in reader.pages:
             text = page.extract_text() or ""
-            if not text:
-                for img in page.images:
-                    img_bytes = BytesIO(img.data)
-                    img_pil = PilImage.open(img_bytes)
-                    text += pytesseract.image_to_string(img_pil) + "\n"
             full_text += text + "\n"
 
         st.success(f"PDF processed ({len(reader.pages)} pages)")
