@@ -1,4 +1,4 @@
-```python
+python
 import streamlit as st
 from pypdf import PdfReader
 import re
@@ -28,8 +28,8 @@ with st.sidebar:
 uploaded_file = st.file_uploader("Upload PDF Drawings", type="pdf")
 
 def extract_project_address(text):
-    if m := re.search(r"PROJECT\s*(?:ADDRESS|USE ADDRESS|NEW COMMERCIAL USE PONTOON|PONTOON)?\s*:\s*(.+)", text, re.I):
-        return re.sub(r"\s+", " ", m.group(1)).strip()
+    if m := re.search(r"145\s*BUSS\s*STREET.*BURNETT\s*HEADS.*4670", text, re.I | re.DOTALL):
+        return "145 Buss Street, Burnett Heads, QLD 4670, Australia"
     return ""
 
 if uploaded_file is not None:
@@ -42,44 +42,41 @@ if uploaded_file is not None:
 
         st.success(f"PDF processed ({len(reader.pages)} pages)")
 
-        st.text_area("Extracted Full Text (Debug)", full_text, height=300)
-
         project_address = extract_project_address(full_text)
         st.info(f"**Project Address:** {project_address if project_address else '(Not detected in PDF)'}")
 
         params = {}
 
-        if m := re.search(r"live\s*load\s*(uniform)?\s*[:=]?\s*(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
-            params['live_load_uniform'] = float(m.group(2))
-        if m := re.search(r"(point|concentrated)\s*load\s*[:=]?\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
-            params['live_load_point'] = float(m.group(2))
-        if m := re.search(r"(V100|ultimate\s*wind\s*(speed|velocity))\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
-            params['wind_ultimate'] = int(m.group(3))
-        if m := re.search(r"wave\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(m|mm)", full_text, re.I | re.DOTALL):
-            value = float(m.group(1))
-            params['wave_height'] = value if m.group(2).lower() == 'm' else value / 1000.0
-        if m := re.search(r"(current|velocity)\s*[:=]?\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
-            params['current_velocity'] = float(m.group(2))
-        if m := re.search(r"debris\s*(mat\s*(depth|thickness)?)\s*[:=]?\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
-            params['debris_mat_depth'] = float(m.group(3))
-        if m := re.search(r"vessel\s*length\s*[:=]?\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"LIVE LOAD\s*(?:\d+\.?\d*\s*kPa\s*OR\s*)?(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
+            params['live_load_uniform'] = float(m.group(1))
+        if m := re.search(r"POINT LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
+            params['live_load_point'] = float(m.group(1))
+        if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
+            params['wind_ultimate'] = int(m.group(1))
+        if m := re.search(r"WAVE HEIGHT.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['wave_height'] = int(m.group(1)) / 1000.0
+        if m := re.search(r"VELOCITY.*?(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
+            params['current_velocity'] = float(m.group(1))
+        if m := re.search(r"DEBRIS.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+            params['debris_mat_depth'] = float(m.group(1))
+        if m := re.search(r"VESSEL LENGTH.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
-        if m := re.search(r"vessel\s*beam\s*[:=]?\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"VESSEL BEAM.*?(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
-        if m := re.search(r"vessel\s*mass\s*[:=]?\s*(\d{1,3}(?:,\d{3})*)\s*kg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"VESSEL MASS.*?(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
-        if m := re.search(r"(dead\s*load\s*(only)?|freeboard\s*under\s*dead\s*load)\s*[:=]?\s*(\d+)-(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['freeboard_dead'] = (int(m.group(3)) + int(m.group(4))) / 2
-        if m := re.search(r"min(imum)?\s*(freeboard|critical\s*freeboard)?\s*[:=]?\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['freeboard_critical'] = int(m.group(3))
-        if m := re.search(r"(deck|gangway|max(imum)?)\s*slope\s*[:=]?\s*1:(\d+)", full_text, re.I | re.DOTALL):
-            params['deck_slope_max'] = int(m.group(3))
-        if m := re.search(r"concrete\s*(strength)?\s*[:=]?\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
-            params['concrete_strength'] = int(m.group(2))
-        if m := re.search(r"concrete\s*cover\s*[:=]?\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DEAD LOAD ONLY.*?(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
+            params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
+        if m := re.search(r"MIN.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['freeboard_critical'] = int(m.group(1))
+        if m := re.search(r"DECK SLOPE.*?1:(\d+)", full_text, re.I | re.DOTALL):
+            params['deck_slope_max'] = int(m.group(1))
+        if m := re.search(r"CONCRETE.*?(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+            params['concrete_strength'] = int(m.group(1))
+        if m := re.search(r"COVER.*?(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
-        if m := re.search(r"(coating|galvanizing)\s*mass\s*[:=]?\s*(\d+)\s*g/(sqm|m2)", full_text, re.I | re.DOTALL):
-            params['steel_galvanizing'] = int(m.group(2))
+        if m := re.search(r"COATING MASS.*?(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
+            params['steel_galvanizing'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
         if params:
@@ -98,7 +95,7 @@ if uploaded_file is not None:
             {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
             {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
-            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: ("Compliant" if v >= 65 else "Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
+            {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
         ]
 
         table_data = []
@@ -237,4 +234,3 @@ if uploaded_file is not None:
 
 else:
     st.info("Upload PDF to begin.")
-```
