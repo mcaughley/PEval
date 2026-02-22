@@ -52,14 +52,14 @@ if uploaded_file is not None:
             params['live_load_point'] = float(m.group(1))
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
         if m := re.search(r"STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
         if m := re.search(r"DEBRIS LOADS\s*=\s*(\d+\.?\d*)\s*m\s*DEEP", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
-        if m := re.search(r"TONNE LOG IMPACT", full_text, re.I | re.DOTALL):
-            params['debris_log_mass'] = 0.5  # Hardcoded from text
+        if m := re.search(r"(\d+\.?\d*)\s*TONNE LOG IMPACT", full_text, re.I | re.DOTALL):
+            params['debris_log_mass'] = float(m.group(1))
         if m := re.search(r"VESSEL LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
         if m := re.search(r"VESSEL BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
@@ -68,17 +68,17 @@ if uploaded_file is not None:
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
-        if m := re.search(r"CRITICAL FLOTATION/STABILITY CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
         if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
-        if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
-        if m := re.search(r"MINIMUM COVER TO THE REINFORCEMENT\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM COVER\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
         if m := re.search(r"COATING MASS NOT LESS THAN\s*(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
-        if m := re.search(r"MINIMUM GRADE\s*6061 T6", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM GRADE\s*6061\s*T6", full_text, re.I | re.DOTALL):
             params['aluminium_grade'] = "6061 T6"
         if m := re.search(r"MINIMUM F17", full_text, re.I | re.DOTALL):
             params['timber_grade'] = "F17"
@@ -86,7 +86,7 @@ if uploaded_file is not None:
             params['fixings_grade'] = "316"
         if m := re.search(r"MAX\s*(\d+)mm SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
-        if m := re.search(r"MAX OUT-OF-PLANE TOLERANCE\s*=\s*(\d+)mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MAX OUT-OF-PLANE TOLERANCE\s*\(TRIANGULATION\)\s*FOR PILES\s*=\s*(\d+)mm", full_text, re.I | re.DOTALL):
             params['pile_tolerance'] = int(m.group(1))
         if m := re.search(r"UNDRAINED COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
             params['soil_cohesion'] = int(m.group(1))
@@ -98,8 +98,8 @@ if uploaded_file is not None:
             params['soil_bearing'] = int(m.group(1))
         if m := re.search(r"SERVICEABILITY WIND SPEED\s*V25\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_service'] = int(m.group(1))
-        if m := re.search(r"CONCRETE\s*TO BE\s*(\d+)MPa.*SLUMP\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['concrete_slump'] = int(m.group(2))
+        if m := re.search(r"SLUMP\s*U.N.O.\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+            params['concrete_slump'] = int(m.group(1))
 
         st.subheader("Extracted Parameters")
         if params:
@@ -116,21 +116,21 @@ if uploaded_file is not None:
             {"name": "Current velocity", "req": "≤ 1.5 m/s", "key": "current_velocity", "func": lambda v: v <= 1.5 if v is not None else False, "ref": "AS 3962:2020 §2"},
             {"name": "Debris mat depth", "req": "≥ 1.0 m", "key": "debris_mat_depth", "func": lambda v: v >= 1.0 if v is not None else False, "ref": "AS 4997:2005 §3"},
             {"name": "Debris log mass", "req": "≥ 0.5 tonne", "key": "debris_log_mass", "func": lambda v: v >= 0.5 if v is not None else False, "ref": "AS 4997:2005 §3"},
-            {"name": "Vessel length", "req": "≤ 15 m", "key": "vessel_length", "func": lambda v: v <= 15 if v is not None else False, "ref": "AS 3962:2020 §2"},
-            {"name": "Vessel beam", "req": "≤ 5 m", "key": "vessel_beam", "func": lambda v: v <= 5 if v is not None else False, "ref": "AS 3962:2020 §2"},
-            {"name": "Vessel mass", "req": "≤ 25,000 kg", "key": "vessel_mass", "func": lambda v: v <= 25000 if v is not None else False, "ref": "AS 3962:2020 §2"},
+            {"name": "Vessel length", "req": "≤ 18 m", "key": "vessel_length", "func": lambda v: v <= 18 if v is not None else False, "ref": "AS 3962:2020 §2"},
+            {"name": "Vessel beam", "req": "≤ 5.5 m", "key": "vessel_beam", "func": lambda v: v <= 5.5 if v is not None else False, "ref": "AS 3962:2020 §2"},
+            {"name": "Vessel mass", "req": "≤ 33,000 kg", "key": "vessel_mass", "func": lambda v: v <= 33000 if v is not None else False, "ref": "AS 3962:2020 §2"},
             {"name": "Freeboard (dead)", "req": "300–600 mm", "key": "freeboard_dead", "func": lambda v: 300 <= v <= 600 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Freeboard (critical)", "req": "≥ 50 mm", "key": "freeboard_critical", "func": lambda v: v >= 50 if v is not None else False, "ref": "AS 4997:2005 §4"},
-            {"name": "Max deck slope", "req": "< 10°", "key": "deck_slope_max", "func": lambda v: v < 10 if v is not None else False, "ref": "AS 3962:2020 §3"},
+            {"name": "Max deck slope", "req": "1:5 (11.3°)", "key": "deck_slope_max", "func": lambda v: v == 5 if v is not None else False, "ref": "AS 3962:2020 §3"},
             {"name": "Concrete strength", "req": "≥ 40 MPa", "key": "concrete_strength", "func": lambda v: v >= 40 if v is not None else False, "ref": "AS 3600:2018 T4.3"},
             {"name": "Concrete cover", "req": "50 mm (C1); 65 mm (C2)", "key": "concrete_cover", "func": lambda v: "Compliant" if v >= 65 else ("Conditional" if v >= 50 else "Review") if v is not None else "N/A", "ref": "AS 3600:2018 T4.3"},
             {"name": "Steel galvanizing", "req": "≥ 600 g/m²", "key": "steel_galvanizing", "func": lambda v: v >= 600 if v is not None else False, "ref": "AS 1650"},
             {"name": "Aluminium grade", "req": "6061-T6", "key": "aluminium_grade", "func": lambda v: v == "6061 T6" if v is not None else False, "ref": "AS 1664"},
             {"name": "Timber grade", "req": "F17", "key": "timber_grade", "func": lambda v: v == "F17" if v is not None else False, "ref": "AS 1720.1"},
             {"name": "Fixings grade", "req": "316 SS", "key": "fixings_grade", "func": lambda v: v == "316" if v is not None else False, "ref": "General"},
-            {"name": "Max scour allowance", "req": "300–1000 mm", "key": "scour_allowance", "func": lambda v: 300 <= v <= 1000 if v is not None else False, "ref": "Design Note 4"},
+            {"name": "Max scour allowance", "req": "≤ 500 mm", "key": "scour_allowance", "func": lambda v: v <= 500 if v is not None else False, "ref": "Design Note 4"},
             {"name": "Pile tolerance", "req": "≤ 100 mm", "key": "pile_tolerance", "func": lambda v: v <= 100 if v is not None else False, "ref": "Design Note 5"},
-            {"name": "Soil cohesion", "req": "≥ 100 kPa", "key": "soil_cohesion", "func": lambda v: v >= 100 if v is not None else False, "ref": "Design Note k2"},
+            {"name": "Soil cohesion", "req": "≥ 125 kPa", "key": "soil_cohesion", "func": lambda v: v >= 125 if v is not None else False, "ref": "Design Note k2"},
             {"name": "Soil density", "req": "1.6 t/m³", "key": "soil_density", "func": lambda v: v == 1.6 if v is not None else False, "ref": "Design Note j1"},
             {"name": "Soil friction angle", "req": "≥ 36°", "key": "soil_friction", "func": lambda v: v >= 36 if v is not None else False, "ref": "Design Note j3"},
             {"name": "Soil bearing", "req": "≥ 100 kPa", "key": "soil_bearing", "func": lambda v: v >= 100 if v is not None else False, "ref": "Design Note j4"},
@@ -235,6 +235,15 @@ if uploaded_file is not None:
                 nc_table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('BACKGROUND', (0,0), (-1,0), colors.red), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('ALIGN', (0,0), (-1,0), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('FONTSIZE', (0,1), (-1,-1), 9), ('BACKGROUND', (0,1), (-1,-1), colors.lightgrey)]))
                 elements.append(nc_table)
                 elements.append(Spacer(1, 12*mm))
+
+                # Add explanations
+                elements.append(Paragraph("Explanations for Non-Compliant Items", styles['Heading3']))
+                for row in non_compliant:
+                    explanation = f"{row['Check']}: Design value {row['Design Value']} does not meet required {row['Required']}. This may require redesign, variance approval, or further site-specific assessment."
+                    if row['Design Value'] == "N/A":
+                        explanation = f"{row['Check']}: Value not detected in PDF; manual review required to confirm compliance."
+                    elements.append(Paragraph(explanation, styles['Normal']))
+                    elements.append(Spacer(1, 6*mm))
 
             elements.append(Paragraph("Project Risk Assessment", styles['Heading2']))
             elements.append(Spacer(1, 12*mm))
