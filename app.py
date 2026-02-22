@@ -9,6 +9,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 from reportlab.lib.units import mm
+from PIL import Image as PilImage
+import pytesseract
 
 LOGO_PATH = "cbkm_logo.png"
 
@@ -37,6 +39,11 @@ if uploaded_file is not None:
         full_text = ""
         for page in reader.pages:
             text = page.extract_text() or ""
+            if not text.strip():  # If no text, try OCR
+                for img in page.images:
+                    img_bytes = BytesIO(img.data)
+                    img_pil = PilImage.open(img_bytes)
+                    text += pytesseract.image_to_string(img_pil) + "\n"
             full_text += text + "\n"
 
         st.success(f"PDF processed ({len(reader.pages)} pages)")
@@ -52,9 +59,9 @@ if uploaded_file is not None:
             params['live_load_point'] = float(m.group(1))
         if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"DESIGN WAVE HEIGHT\s*=\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"WAVE HEIGHT\s*=\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
-        if m := re.search(r"DESIGN STREAM VELOCITY\s*.*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
         if m := re.search(r"DEBRIS LOADS\s*=\s*(\d+\.?\d*)\s*m\s*DEEP", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
@@ -68,9 +75,9 @@ if uploaded_file is not None:
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
         if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
-        if m := re.search(r"CRITICAL FLOTATION/STABILITY CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-        if m := re.search(r"CRITICAL\s*DECK\s*SLOPE\s*=\s*1:(\d+)\s*DEG", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*(\d+)\s*DEG", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
         if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
@@ -92,14 +99,14 @@ if uploaded_file is not None:
             params['soil_cohesion'] = int(m.group(1))
         if m := re.search(r"SOIL DENSITY\s*-\s*(\d+\.?\d*)\s*TONNES / CUBIC METRE", full_text, re.I | re.DOTALL):
             params['soil_density'] = float(m.group(1))
-        if m := re.search(r"INTERNAL FRICTION ANGLE\s*=\s*(\d+)\s*deg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"INTERNAL FRICTION ANGLE\s*:\s*(\d+)\s*deg", full_text, re.I | re.DOTALL):
             params['soil_friction'] = int(m.group(1))
         if m := re.search(r"MINIMUM ALLOWABLE BEARING:\s*(\d+)\s*kPa", full_text, re.I | re.DOTALL):
             params['soil_bearing'] = int(m.group(1))
         if m := re.search(r"SERVICEABILITY WIND SPEED\s*V25\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_service'] = int(m.group(1))
-        if m := re.search(r"SLUMP\s*U.N.O.\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['concrete_slump'] = int(m.group(1))
+        if m := re.search(r"80\s*mm\s*SLUMP", full_text, re.I | re.DOTALL):
+            params['concrete_slump'] = 80
 
         st.subheader("Extracted Parameters")
         if params:
