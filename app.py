@@ -48,7 +48,7 @@ if uploaded_file is not None:
 
         if m := re.search(r"GANGWAY\(S\)\s*-\s*LIVE\s*LOAD\s*(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
-        if m := re.search(r"POINT\s*LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
+        if m := re.search(r"OR\s*POINT\s*LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_point'] = float(m.group(1))
         if m := re.search(r"ULTIMATE\s*WIND\s*SPEED\s*V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
@@ -70,7 +70,7 @@ if uploaded_file is not None:
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
         if m := re.search(r"CRITICAL\s*FLOTATION/STABILITY\s*CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-        if m := re.search(r"CRITICAL\s*DECK\s*SLOPE\s*=\s*1:(\d+)\s*DEG", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL\s*DECK\s*SLOPE\s*=\s*1:(\d+)\s*deg", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
         if m := re.search(r"PONTOON\s*CONCRETE\s*STRENGTH\s*TO\s*BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
@@ -98,8 +98,8 @@ if uploaded_file is not None:
             params['soil_bearing'] = int(m.group(1))
         if m := re.search(r"SERVICEABILITY\s*WIND\s*SPEED\s*V25\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_service'] = int(m.group(1))
-        if m := re.search(r"SLUMP\s*U.N.O.\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
-            params['concrete_slump'] = int(m.group(1))
+        if m := re.search(r"80\s*mm\s*SLUMP", full_text, re.I | re.DOTALL):
+            params['concrete_slump'] = 80
 
         st.subheader("Extracted Parameters")
         if params:
