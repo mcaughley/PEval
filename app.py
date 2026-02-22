@@ -46,57 +46,57 @@ if uploaded_file is not None:
 
         params = {}
 
-        if m := re.search(r"LIVE LOAD\s*(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"GANGWAY\(S\)\s*-\s*LIVE\s*LOAD\s*(\d+\.?\d*)\s*kPa", full_text, re.I | re.DOTALL):
             params['live_load_uniform'] = float(m.group(1))
-        if m := re.search(r"POINT LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
+        if m := re.search(r"POINT\s*LOAD\s*(\d+\.?\d*)\s*kN", full_text, re.I | re.DOTALL):
             params['live_load_point'] = float(m.group(1))
-        if m := re.search(r"V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"ULTIMATE\s*WIND\s*SPEED\s*V100\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_ultimate'] = int(m.group(1))
-        if m := re.search(r"DESIGN WAVE HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN\s*WAVE\s*HEIGHT\s*<\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['wave_height'] = int(m.group(1)) / 1000.0
-        if m := re.search(r"DESIGN STREAM VELOCITY\s*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN\s*STREAM\s*VELOCITY\s*.*<\s*(\d+\.?\d*)\s*m/s", full_text, re.I | re.DOTALL):
             params['current_velocity'] = float(m.group(1))
-        if m := re.search(r"DEBRIS LOADS\s*=\s*(\d+\.?\d*)\s*m\s*DEEP", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DEBRIS\s*LOADS\s*=\s*(\d+\.?\d*)\s*m\s*DEEP", full_text, re.I | re.DOTALL):
             params['debris_mat_depth'] = float(m.group(1))
-        if m := re.search(r"(\d+\.?\d*)\s*TONNE LOG IMPACT", full_text, re.I | re.DOTALL):
+        if m := re.search(r"(\d+\.?\d*)\s*TONNE\s*LOG\s*IMPACT", full_text, re.I | re.DOTALL):
             params['debris_log_mass'] = float(m.group(1))
-        if m := re.search(r"DESIGN WET BERTH VESSEL LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DESIGN\s*WET\s*BERTH\s*VESSEL\s*LENGTH\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_length'] = float(m.group(1))
-        if m := re.search(r"VESSEL BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
+        if m := re.search(r"VESSEL\s*BEAM\s*=\s*(\d+\.?\d*)\s*m", full_text, re.I | re.DOTALL):
             params['vessel_beam'] = float(m.group(1))
-        if m := re.search(r"VESSEL MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"VESSEL\s*MASS\s*=\s*(\d+,\d+)\s*kg", full_text, re.I | re.DOTALL):
             params['vessel_mass'] = int(m.group(1).replace(',', ''))
-        if m := re.search(r"DEAD LOAD ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"DEAD\s*LOAD\s*ONLY\s*=\s*(\d+)-(\d+)mm", full_text, re.I | re.DOTALL):
             params['freeboard_dead'] = (int(m.group(1)) + int(m.group(2))) / 2
-        if m := re.search(r"CRITICAL FLOTATION/STABILITY CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL\s*FLOTATION/STABILITY\s*CASE\s*=\s*MIN\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['freeboard_critical'] = int(m.group(1))
-        if m := re.search(r"CRITICAL DECK SLOPE\s*=\s*1:(\d+)\s*deg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"CRITICAL\s*DECK\s*SLOPE\s*=\s*1:(\d+)\s*DEG", full_text, re.I | re.DOTALL):
             params['deck_slope_max'] = int(m.group(1))
-        if m := re.search(r"PONTOON CONCRETE STRENGTH TO BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"PONTOON\s*CONCRETE\s*STRENGTH\s*TO\s*BE\s*(\d+)\s*MPa", full_text, re.I | re.DOTALL):
             params['concrete_strength'] = int(m.group(1))
-        if m := re.search(r"MINIMUM COVER TO THE REINFORCEMENT\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM\s*COVER\s*TO\s*THE\s*REINFORCEMENT\s*-\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_cover'] = int(m.group(1))
-        if m := re.search(r"COATING MASS NOT LESS THAN\s*(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"COATING\s*MASS\s*NOT\s*LESS\s*THAN\s*(\d+)\s*g/sqm", full_text, re.I | re.DOTALL):
             params['steel_galvanizing'] = int(m.group(1))
-        if m := re.search(r"MINIMUM GRADE\s*6061\s*T6", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM\s*GRADE\s*6061\s*T6", full_text, re.I | re.DOTALL):
             params['aluminium_grade'] = "6061 T6"
-        if m := re.search(r"MINIMUM F17", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM\s*F17", full_text, re.I | re.DOTALL):
             params['timber_grade'] = "F17"
-        if m := re.search(r"316 GRADE STAINLESS STEEL", full_text, re.I | re.DOTALL):
+        if m := re.search(r"316\s*GRADE\s*STAINLESS\s*STEEL", full_text, re.I | re.DOTALL):
             params['fixings_grade'] = "316"
-        if m := re.search(r"MAX\s*(\d+)mm SCOUR", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MAX\s*(\d+)mm\s*SCOUR", full_text, re.I | re.DOTALL):
             params['scour_allowance'] = int(m.group(1))
-        if m := re.search(r"MAX OUT-OF-PLANE TOLERANCE\s*\(TRIANGULATION\)\s*FOR PILES\s*=\s*(\d+)mm", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MAX\s*OUT-OF-PLANE\s*TOLERANCE\s*.*=\s*(\d+)mm", full_text, re.I | re.DOTALL):
             params['pile_tolerance'] = int(m.group(1))
-        if m := re.search(r"UNDRAINED COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"UNDRAINED\s*COHESION\s*=\s*(\d+)kPa", full_text, re.I | re.DOTALL):
             params['soil_cohesion'] = int(m.group(1))
-        if m := re.search(r"SOIL DENSITY\s*-\s*(\d+\.?\d*)\s*TONNES / CUBIC METRE", full_text, re.I | re.DOTALL):
+        if m := re.search(r"SOIL\s*DENSITY\s*-\s*(\d+\.?\d*)\s*TONNES", full_text, re.I | re.DOTALL):
             params['soil_density'] = float(m.group(1))
-        if m := re.search(r"INTERNAL FRICTION ANGLE\s*=\s*(\d+)\s*deg", full_text, re.I | re.DOTALL):
+        if m := re.search(r"INTERNAL\s*FRICTION\s*ANGLE\s*=\s*(\d+)\s*deg", full_text, re.I | re.DOTALL):
             params['soil_friction'] = int(m.group(1))
-        if m := re.search(r"MINIMUM ALLOWABLE BEARING:\s*(\d+)\s*kPa", full_text, re.I | re.DOTALL):
+        if m := re.search(r"MINIMUM\s*ALLOWABLE\s*BEARING:\s*(\d+)\s*kPa", full_text, re.I | re.DOTALL):
             params['soil_bearing'] = int(m.group(1))
-        if m := re.search(r"SERVICEABILITY WIND SPEED\s*V25\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
+        if m := re.search(r"SERVICEABILITY\s*WIND\s*SPEED\s*V25\s*=\s*(\d+)\s*m/s", full_text, re.I | re.DOTALL):
             params['wind_service'] = int(m.group(1))
         if m := re.search(r"SLUMP\s*U.N.O.\s*(\d+)\s*mm", full_text, re.I | re.DOTALL):
             params['concrete_slump'] = int(m.group(1))
